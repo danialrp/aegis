@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { deleteServer, getServer } from './api'
+import { MetricsPanel } from './metrics-panel'
 import { StatusBadge } from './status-badge'
 
 export function ServerDetail({ id }: { id: number }) {
@@ -80,6 +81,8 @@ export function ServerDetail({ id }: { id: number }) {
                 value={new Date(data.created_at).toLocaleString()}
               />
             </dl>
+
+            {data.status === 'ready' && <MetricsPanel serverID={data.id} />}
 
             <div className='flex justify-end'>
               <Button

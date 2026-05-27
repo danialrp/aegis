@@ -20,12 +20,24 @@ import (
 // MessageType discriminates the three wire frames.
 type MessageType string
 
-// The three message kinds on the wire. See package doc for the full
-// semantics of each.
+// Message kinds on the wire. See package doc for the full semantics
+// of each.
 const (
 	MsgRequest  MessageType = "request"
 	MsgResponse MessageType = "response"
 	MsgEvent    MessageType = "event"
+
+	// Streaming — Phase 6. Bidirectional binary streams keyed by a
+	// caller-chosen ID, layered on top of the same WebSocket:
+	//
+	//   stream_open  caller → callee  "please open <method> with <params>"
+	//   stream_ready callee → caller  ack; the stream is live
+	//   stream_data  either direction  payload chunk in Params (base64)
+	//   stream_close either direction  optional Error in Error field
+	MsgStreamOpen  MessageType = "stream_open"
+	MsgStreamReady MessageType = "stream_ready"
+	MsgStreamData  MessageType = "stream_data"
+	MsgStreamClose MessageType = "stream_close"
 )
 
 // Message is the single wire frame. Fields are omitempty so the JSON
@@ -120,7 +132,47 @@ const (
 	MethodHostDBBackup         = "host.db_backup"
 	MethodHostDBRestore        = "host.db_restore"
 	MethodHostDBBackupsList    = "host.db_backups_list"
+
+	// Phase 6 — server metrics + PTY.
+	MethodHostMetrics  = "host.metrics"
+	MethodHostPtyOpen  = "host.pty_open"  // stream_open variant — opens a PTY for site_<id>
+	MethodHostPtyClose = "host.pty_close" // signals controller-driven teardown
 )
+
+// MetricsResult is the snapshot returned by host.metrics. Numbers are
+// kept in canonical units (bytes, percent in [0..100], seconds).
+type MetricsResult struct {
+	CollectedAt int64       `json:"collected_at"` // unix seconds
+	UptimeSec   int64       `json:"uptime_sec"`
+	LoadAvg     [3]float64  `json:"load_avg"` // 1m / 5m / 15m
+	CPUCount    int         `json:"cpu_count"`
+	Memory      MemoryStats `json:"memory"`
+	Swap        MemoryStats `json:"swap"`
+	Disks       []DiskUsage `json:"disks"`
+	Kernel      string      `json:"kernel,omitempty"`
+}
+
+// MemoryStats is in bytes.
+type MemoryStats struct {
+	Total uint64 `json:"total"`
+	Used  uint64 `json:"used"`
+	Free  uint64 `json:"free"`
+}
+
+// DiskUsage covers one mounted filesystem.
+type DiskUsage struct {
+	Mount string `json:"mount"`
+	FS    string `json:"fs"`
+	Total uint64 `json:"total"`
+	Used  uint64 `json:"used"`
+}
+
+// PtyOpenParams names which site_<id> to spawn the shell as.
+type PtyOpenParams struct {
+	SiteID int64 `json:"site_id"`
+	Cols   int   `json:"cols,omitempty"`
+	Rows   int   `json:"rows,omitempty"`
+}
 
 // DBCreateParams covers both mysql_db_create + postgres_db_create.
 // SiteID is only consumed by the mysql helper (its first argv is

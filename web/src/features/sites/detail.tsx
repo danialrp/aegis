@@ -13,6 +13,7 @@ import { DeployScriptEditor } from './deploy-script-editor'
 import { DeploysPanel } from './deploys-panel'
 import { SSLPanel } from './ssl-panel'
 import { SiteStatusBadge } from './status-badge'
+import { TerminalPanel } from './terminal-panel'
 
 export function SiteDetail({ id }: { id: number }) {
   const qc = useQueryClient()
@@ -114,6 +115,8 @@ export function SiteDetail({ id }: { id: number }) {
             <DaemonsPanel siteID={data.id} />
 
             <DatabasesPanel siteID={data.id} />
+
+            <TerminalPanel siteID={data.id} />
 
             <div className='flex justify-end'>
               <Button

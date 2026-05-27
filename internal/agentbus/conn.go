@@ -4,9 +4,11 @@ package agentbus
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"sync"
 	"time"
@@ -36,6 +38,77 @@ type Conn struct {
 
 	pendingMu sync.Mutex
 	pending   map[string]chan *protocol.Message
+
+	streamsMu sync.Mutex
+	streams   map[string]*Stream
+}
+
+// Stream is one in-flight bidirectional stream. Created by
+// OpenStream; data arrives on Recv, send via Send, finish with Close.
+type Stream struct {
+	ID   string
+	conn *Conn
+
+	recvCh   chan []byte
+	readyCh  chan struct{} // closed when stream_ready arrives
+	closeCh  chan error    // closed/sent when peer closes
+	closedMu sync.Mutex
+	closed   bool
+}
+
+// Recv returns the next data chunk or io.EOF when the stream ends.
+func (s *Stream) Recv() ([]byte, error) {
+	select {
+	case b, ok := <-s.recvCh:
+		if !ok {
+			return nil, io.EOF
+		}
+		return b, nil
+	case err := <-s.closeCh:
+		// Drain pending data before yielding the close error so the
+		// caller sees every byte the peer sent.
+		select {
+		case b, ok := <-s.recvCh:
+			if ok {
+				return b, nil
+			}
+		default:
+		}
+		if err != nil {
+			return nil, err
+		}
+		return nil, io.EOF
+	}
+}
+
+// Send pushes a data chunk to the peer.
+func (s *Stream) Send(ctx context.Context, b []byte) error {
+	return s.conn.writeMessage(ctx, protocol.Message{
+		Type:   protocol.MsgStreamData,
+		ID:     s.ID,
+		Params: encodeStreamPayload(b),
+	})
+}
+
+// Close sends stream_close to the peer and tears down local state.
+func (s *Stream) Close() error {
+	s.closedMu.Lock()
+	if s.closed {
+		s.closedMu.Unlock()
+		return nil
+	}
+	s.closed = true
+	s.closedMu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
+	defer cancel()
+	_ = s.conn.writeMessage(ctx, protocol.Message{
+		Type: protocol.MsgStreamClose, ID: s.ID,
+	})
+	s.conn.streamsMu.Lock()
+	delete(s.conn.streams, s.ID)
+	s.conn.streamsMu.Unlock()
+	return nil
 }
 
 func newConn(ws *websocket.Conn, serverID int64, logger *slog.Logger) *Conn {
@@ -44,6 +117,7 @@ func newConn(ws *websocket.Conn, serverID int64, logger *slog.Logger) *Conn {
 		ws:       ws,
 		logger:   logger.With("server_id", serverID),
 		pending:  make(map[string]chan *protocol.Message),
+		streams:  make(map[string]*Stream),
 	}
 }
 
@@ -109,6 +183,8 @@ func (c *Conn) readLoop(ctx context.Context) error {
 		switch msg.Type {
 		case protocol.MsgResponse:
 			c.routeResponse(&msg)
+		case protocol.MsgStreamReady, protocol.MsgStreamData, protocol.MsgStreamClose:
+			c.routeStream(&msg)
 		case protocol.MsgRequest:
 			// 0.7 does not define any agent-initiated RPCs. Reject so
 			// a misbehaving agent surfaces clearly rather than hanging.
@@ -177,4 +253,127 @@ func (c *Conn) failPending(err error) {
 		default:
 		}
 	}
+}
+
+// OpenStream initiates a stream RPC and returns a Stream the caller
+// can Recv/Send/Close on. The Stream is ready to send/recv as soon as
+// the agent acks with stream_ready (or this returns an error).
+func (c *Conn) OpenStream(ctx context.Context, method string, params any) (*Stream, error) {
+	id := uuid.NewString()
+
+	var paramsRaw json.RawMessage
+	if params != nil {
+		b, err := json.Marshal(params)
+		if err != nil {
+			return nil, fmt.Errorf("marshal params: %w", err)
+		}
+		paramsRaw = b
+	}
+
+	s := &Stream{
+		ID:      id,
+		conn:    c,
+		recvCh:  make(chan []byte, 64),
+		readyCh: make(chan struct{}),
+		closeCh: make(chan error, 1),
+	}
+	c.streamsMu.Lock()
+	c.streams[id] = s
+	c.streamsMu.Unlock()
+
+	if err := c.writeMessage(ctx, protocol.Message{
+		Type:   protocol.MsgStreamOpen,
+		ID:     id,
+		Method: method,
+		Params: paramsRaw,
+	}); err != nil {
+		c.streamsMu.Lock()
+		delete(c.streams, id)
+		c.streamsMu.Unlock()
+		return nil, err
+	}
+
+	// Wait for stream_ready (or close-on-error).
+	select {
+	case <-s.readyCh:
+		return s, nil
+	case err := <-s.closeCh:
+		c.streamsMu.Lock()
+		delete(c.streams, id)
+		c.streamsMu.Unlock()
+		if err == nil {
+			err = errors.New("stream closed before ready")
+		}
+		return nil, err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (c *Conn) routeStream(msg *protocol.Message) {
+	c.streamsMu.Lock()
+	s, ok := c.streams[msg.ID]
+	c.streamsMu.Unlock()
+	if !ok {
+		c.logger.Debug("stream frame for unknown id", "id", msg.ID, "type", string(msg.Type))
+		return
+	}
+	switch msg.Type {
+	case protocol.MsgStreamReady:
+		select {
+		case <-s.readyCh: // already closed
+		default:
+			close(s.readyCh)
+		}
+	case protocol.MsgStreamData:
+		b, err := decodeStreamPayload(msg.Params)
+		if err != nil {
+			c.logger.Warn("decode stream payload", "err", err)
+			return
+		}
+		select {
+		case s.recvCh <- b:
+		default:
+			// Buffer full — drop. Terminal streams should be drained
+			// quickly by the browser; if not, we'd grow unbounded.
+			c.logger.Warn("stream recv buffer full, dropping chunk", "id", msg.ID)
+		}
+	case protocol.MsgStreamClose:
+		var perr error
+		if msg.Error != nil {
+			perr = fmt.Errorf("%s: %s", msg.Error.Code, msg.Error.Message)
+		}
+		s.closedMu.Lock()
+		s.closed = true
+		s.closedMu.Unlock()
+		select {
+		case s.closeCh <- perr:
+		default:
+		}
+		close(s.recvCh)
+		c.streamsMu.Lock()
+		delete(c.streams, msg.ID)
+		c.streamsMu.Unlock()
+	}
+}
+
+// encodeStreamPayload wraps a byte slice in a JSON object with a
+// base64-encoded "b" field so it survives JSON transit.
+func encodeStreamPayload(b []byte) json.RawMessage {
+	enc := base64.StdEncoding.EncodeToString(b)
+	out, _ := json.Marshal(map[string]string{"b": enc})
+	return out
+}
+
+func decodeStreamPayload(p json.RawMessage) ([]byte, error) {
+	if len(p) == 0 {
+		return nil, nil
+	}
+	var box struct {
+		B string `json:"b"`
+	}
+	if err := json.Unmarshal(p, &box); err != nil {
+		return nil, err
+	}
+	return base64.StdEncoding.DecodeString(box.B)
 }

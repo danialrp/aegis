@@ -9,16 +9,19 @@ package dialer
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 
+	"github.com/danialrp/aegis/internal/agent/pty"
 	"github.com/danialrp/aegis/internal/agent/rpc"
 	"github.com/danialrp/aegis/pkg/protocol"
 )
@@ -37,15 +40,21 @@ type Dialer struct {
 	url       string
 	tlsConfig *tls.Config
 	handler   *rpc.Handler
+	pty       *pty.Manager
 	logger    *slog.Logger
+
+	// Per-connection state for streams (PTY). Reset on each reconnect.
+	writeMu sync.Mutex
+	ws      *websocket.Conn
 }
 
 // New builds a Dialer.
-func New(url string, tlsConfig *tls.Config, handler *rpc.Handler, logger *slog.Logger) *Dialer {
+func New(url string, tlsConfig *tls.Config, handler *rpc.Handler, ptyMgr *pty.Manager, logger *slog.Logger) *Dialer {
 	return &Dialer{
 		url:       url,
 		tlsConfig: tlsConfig,
 		handler:   handler,
+		pty:       ptyMgr,
 		logger:    logger,
 	}
 }
@@ -105,6 +114,15 @@ func (d *Dialer) serveOne(ctx context.Context) error {
 	}
 	defer func() { _ = ws.Close(websocket.StatusGoingAway, "shutdown") }()
 
+	d.writeMu.Lock()
+	d.ws = ws
+	d.writeMu.Unlock()
+	defer func() {
+		d.writeMu.Lock()
+		d.ws = nil
+		d.writeMu.Unlock()
+	}()
+
 	d.logger.Info("connected to controller", "url", d.url)
 
 	for {
@@ -116,9 +134,13 @@ func (d *Dialer) serveOne(ctx context.Context) error {
 		switch msg.Type {
 		case protocol.MsgRequest:
 			d.handleRequest(ctx, ws, &msg)
+		case protocol.MsgStreamOpen:
+			d.handleStreamOpen(ctx, ws, &msg)
+		case protocol.MsgStreamData:
+			d.handleStreamData(&msg)
+		case protocol.MsgStreamClose:
+			d.handleStreamClose(&msg)
 		case protocol.MsgResponse:
-			// Agent does not initiate RPCs in 0.7 — any response is
-			// orphaned. Log and continue.
 			d.logger.Warn("unsolicited response from controller", "id", msg.ID)
 		case protocol.MsgEvent:
 			d.logger.Debug("event from controller", "method", msg.Method)
@@ -154,4 +176,103 @@ func (d *Dialer) handleRequest(ctx context.Context, ws *websocket.Conn, req *pro
 	if err := wsjson.Write(writeCtx, ws, resp); err != nil {
 		d.logger.Warn("write response failed", "id", req.ID, "err", err)
 	}
+}
+
+// --- streams ---
+
+func (d *Dialer) handleStreamOpen(ctx context.Context, ws *websocket.Conn, msg *protocol.Message) {
+	switch msg.Method {
+	case protocol.MethodHostPtyOpen:
+		if d.pty == nil {
+			d.streamErr(ctx, ws, msg.ID, "pty_unavailable", "no pty manager configured")
+			return
+		}
+		if err := d.pty.Open(ctx, msg.ID, msg.Params, dialerSink{d: d}); err != nil {
+			d.streamErr(ctx, ws, msg.ID, "pty_open_failed", err.Error())
+		}
+	default:
+		d.streamErr(ctx, ws, msg.ID, "unknown_stream_method", msg.Method)
+	}
+}
+
+func (d *Dialer) handleStreamData(msg *protocol.Message) {
+	if d.pty == nil {
+		return
+	}
+	b, err := decodeDataPayload(msg.Params)
+	if err != nil {
+		d.logger.Warn("decode stream data", "err", err)
+		return
+	}
+	if err := d.pty.Write(msg.ID, b); err != nil {
+		d.logger.Debug("pty write", "id", msg.ID, "err", err)
+	}
+}
+
+func (d *Dialer) handleStreamClose(msg *protocol.Message) {
+	if d.pty == nil {
+		return
+	}
+	d.pty.Close(msg.ID)
+}
+
+func (d *Dialer) streamErr(ctx context.Context, ws *websocket.Conn, id, code, message string) {
+	ctx, cancel := context.WithTimeout(ctx, writeTimeout)
+	defer cancel()
+	_ = wsjson.Write(ctx, ws, protocol.Message{
+		Type: protocol.MsgStreamClose,
+		ID:   id,
+		Error: &protocol.Error{
+			Code: code, Message: message,
+		},
+	})
+}
+
+// dialerSink writes stream frames back through the dialer's current
+// WebSocket. Serialized via writeMu.
+type dialerSink struct{ d *Dialer }
+
+func (s dialerSink) WriteReady(ctx context.Context, id string) error {
+	return s.write(ctx, protocol.Message{Type: protocol.MsgStreamReady, ID: id})
+}
+
+func (s dialerSink) WriteData(ctx context.Context, id string, b []byte) error {
+	enc := base64.StdEncoding.EncodeToString(b)
+	payload, _ := json.Marshal(map[string]string{"b": enc})
+	return s.write(ctx, protocol.Message{
+		Type: protocol.MsgStreamData, ID: id, Params: payload,
+	})
+}
+
+func (s dialerSink) WriteClose(ctx context.Context, id string, err error) error {
+	m := protocol.Message{Type: protocol.MsgStreamClose, ID: id}
+	if err != nil {
+		m.Error = &protocol.Error{Code: "pty_closed", Message: err.Error()}
+	}
+	return s.write(ctx, m)
+}
+
+func (s dialerSink) write(ctx context.Context, msg protocol.Message) error {
+	s.d.writeMu.Lock()
+	ws := s.d.ws
+	s.d.writeMu.Unlock()
+	if ws == nil {
+		return errors.New("ws closed")
+	}
+	wctx, cancel := context.WithTimeout(ctx, writeTimeout)
+	defer cancel()
+	return wsjson.Write(wctx, ws, msg)
+}
+
+func decodeDataPayload(p json.RawMessage) ([]byte, error) {
+	if len(p) == 0 {
+		return nil, nil
+	}
+	var box struct {
+		B string `json:"b"`
+	}
+	if err := json.Unmarshal(p, &box); err != nil {
+		return nil, err
+	}
+	return base64.StdEncoding.DecodeString(box.B)
 }

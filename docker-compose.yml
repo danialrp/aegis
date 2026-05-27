@@ -60,7 +60,7 @@ services:
       AEGIS_DATABASE_URL: postgres://aegis:aegis@postgres:5432/aegis?sslmode=disable
       AEGIS_REDIS_URL: redis://redis:6379/0
       AEGIS_JWT_SECRET: change-me-in-real-deployments-32chars
-      AEGIS_BOOTSTRAP_EMAIL: danial@example.com
+      AEGIS_BOOTSTRAP_EMAIL: danial@gmail.com
       AEGIS_BOOTSTRAP_PASSWORD: bootstrap-passphrase-here
       AEGIS_LOG_FORMAT: text
       AEGIS_CA_DIR: /var/lib/aegis/ca

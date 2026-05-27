@@ -40,13 +40,14 @@ type MountDeps struct {
 // Mount registers the /v1 route tree under r.
 func Mount(r chi.Router, d MountDeps) {
 	authH := NewAuthHandler(d.Auth, d.Logger)
-	serversH := NewServersHandler(d.Queries, d.Audit, d.RiverClient, d.Logger)
+	serversH := NewServersHandler(d.Queries, d.Audit, d.RiverClient, d.Hub, d.Logger)
 	sitesH := NewSitesHandler(d.Queries, d.Audit, d.RiverClient, d.Logger)
 	deploysH := NewDeploysHandler(d.Queries, d.Audit, d.RiverClient, d.Logger)
 	sslH := NewSSLHandler(d.Queries, d.Audit, d.RiverClient, d.LetsEncryptEmail, d.Logger)
 	daemonsH := NewDaemonsHandler(d.Queries, d.Audit, d.Hub, d.Logger)
 	dockerH := NewDockerHandler(d.Queries, d.Audit, d.Hub, d.Logger)
 	databasesH := NewDatabasesHandler(d.Queries, d.Audit, d.Hub, d.Logger)
+	terminalH := NewTerminalHandler(d.Queries, d.Audit, d.Hub, d.Logger)
 
 	r.Route("/v1", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
@@ -66,6 +67,11 @@ func Mount(r chi.Router, d MountDeps) {
 		// Public webhook entry — secret is the auth, not a session.
 		r.Post("/webhooks/git/{site_id}", deploysH.Webhook)
 
+		// Terminal WS — authenticated via a short-lived ticket issued
+		// by the ticket endpoint below. Browsers can't reliably set
+		// Authorization headers on WS upgrades, hence the ticket.
+		r.Get("/sites/{id}/terminal", terminalH.Connect)
+
 		// Authenticated, role-gated everything else.
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.RequireAuth(d.Auth, d.JWTSecret))
@@ -75,6 +81,7 @@ func Mount(r chi.Router, d MountDeps) {
 			r.Get("/servers/{id}", serversH.Get)
 			r.Post("/servers", serversH.Create)
 			r.Delete("/servers/{id}", serversH.Delete)
+			r.Get("/servers/{id}/metrics", serversH.Metrics)
 
 			r.Get("/sites", sitesH.List)
 			r.Get("/sites/{id}", sitesH.Get)
@@ -114,6 +121,9 @@ func Mount(r chi.Router, d MountDeps) {
 			r.Post("/sites/{id}/databases/{db_id}/backup", databasesH.Backup)
 			r.Get("/sites/{id}/databases/{db_id}/backups", databasesH.ListBackups)
 			r.Post("/sites/{id}/databases/{db_id}/restore", databasesH.Restore)
+
+			// Terminal — Phase 6.
+			r.Post("/sites/{id}/terminal/ticket", terminalH.Ticket)
 		})
 	})
 }

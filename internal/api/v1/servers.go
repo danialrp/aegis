@@ -18,10 +18,12 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/riverqueue/river"
 
+	"github.com/danialrp/aegis/internal/agentbus"
 	"github.com/danialrp/aegis/internal/api/middleware"
 	"github.com/danialrp/aegis/internal/audit"
 	"github.com/danialrp/aegis/internal/db/sqlc"
 	"github.com/danialrp/aegis/internal/jobs"
+	"github.com/danialrp/aegis/pkg/protocol"
 )
 
 // ServersHandler serves /v1/servers/*.
@@ -29,14 +31,16 @@ type ServersHandler struct {
 	queries     *sqlc.Queries
 	auditRec    *audit.Recorder
 	riverClient *river.Client[pgx.Tx]
+	hub         *agentbus.Hub
 	logger      *slog.Logger
 }
 
 // NewServersHandler builds the handler. riverClient may be nil in
 // degraded boots (e.g. river migration failure); CreateServer will
-// return 503 in that case.
-func NewServersHandler(q *sqlc.Queries, audit *audit.Recorder, rc *river.Client[pgx.Tx], logger *slog.Logger) *ServersHandler {
-	return &ServersHandler{queries: q, auditRec: audit, riverClient: rc, logger: logger}
+// return 503 in that case. hub may also be nil — Metrics returns
+// 503 in that case.
+func NewServersHandler(q *sqlc.Queries, audit *audit.Recorder, rc *river.Client[pgx.Tx], hub *agentbus.Hub, logger *slog.Logger) *ServersHandler {
+	return &ServersHandler{queries: q, auditRec: audit, riverClient: rc, hub: hub, logger: logger}
 }
 
 // --- request / response shapes ---
@@ -273,3 +277,40 @@ func (h *ServersHandler) recordAudit(ctx context.Context, r *http.Request, serve
 // Compile-time check that the handler implements the small surface
 // v1.go's Mount expects.
 var _ = fmt.Sprintf
+
+// Metrics handles GET /v1/servers/{id}/metrics. Returns the agent's
+// current snapshot of host resources.
+func (h *ServersHandler) Metrics(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_id")
+		return
+	}
+	srv, err := h.queries.GetServer(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "not_found")
+		return
+	}
+	if h.hub == nil {
+		writeError(w, http.StatusServiceUnavailable, "hub_unavailable")
+		return
+	}
+	conn, ok := h.hub.Get(srv.ID)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "agent_offline")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	resp, err := conn.Request(ctx, protocol.MethodHostMetrics, nil)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "rpc_failed")
+		return
+	}
+	var result protocol.MetricsResult
+	if err := json.Unmarshal(resp.Result, &result); err != nil {
+		writeError(w, http.StatusInternalServerError, "decode_failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}

@@ -17,6 +17,7 @@ import (
 	"github.com/danialrp/aegis/internal/agent/config"
 	"github.com/danialrp/aegis/internal/agent/dialer"
 	"github.com/danialrp/aegis/internal/agent/host"
+	agentpty "github.com/danialrp/aegis/internal/agent/pty"
 	"github.com/danialrp/aegis/internal/agent/rpc"
 	"github.com/danialrp/aegis/internal/logging"
 	"github.com/danialrp/aegis/internal/version"
@@ -83,8 +84,10 @@ func run() error {
 	handler.Register(protocol.MethodHostDBBackup, hostMgr.HandleDBBackup)
 	handler.Register(protocol.MethodHostDBRestore, hostMgr.HandleDBRestore)
 	handler.Register(protocol.MethodHostDBBackupsList, hostMgr.HandleDBBackupsList)
+	handler.Register(protocol.MethodHostMetrics, hostMgr.HandleMetrics)
 
-	d := dialer.New(cfg.ControllerURL, tlsCfg, handler, logger)
+	ptyMgr := agentpty.New(logger)
+	d := dialer.New(cfg.ControllerURL, tlsCfg, handler, ptyMgr, logger)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

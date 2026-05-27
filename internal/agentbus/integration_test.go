@@ -94,7 +94,7 @@ func TestEchoRoundTrip(t *testing.T) {
 		Certificates: []tls.Certificate{tlsCert},
 		RootCAs:      pool,
 		MinVersion:   tls.VersionTLS13,
-	}, handler, logger)
+	}, handler, nil, logger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
@@ -178,7 +178,7 @@ func TestUnknownMethodReturnsError(t *testing.T) {
 		Certificates: []tls.Certificate{tlsCert},
 		RootCAs:      pool,
 		MinVersion:   tls.VersionTLS13,
-	}, rpc.New(logger), logger)
+	}, rpc.New(logger), nil, logger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
