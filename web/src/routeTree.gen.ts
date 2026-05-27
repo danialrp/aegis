@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as authSignInRouteImport } from './routes/(auth)/sign-in'
+import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
+import { Route as AuthenticatedTeamsIndexRouteImport } from './routes/_authenticated/teams/index'
 import { Route as AuthenticatedSitesIndexRouteImport } from './routes/_authenticated/sites/index'
 import { Route as AuthenticatedServersIndexRouteImport } from './routes/_authenticated/servers/index'
 import { Route as AuthenticatedSitesNewRouteImport } from './routes/_authenticated/sites/new'
@@ -33,6 +35,16 @@ const authSignInRoute = authSignInRouteImport.update({
   id: '/(auth)/sign-in',
   path: '/sign-in',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedUsersIndexRoute = AuthenticatedUsersIndexRouteImport.update({
+  id: '/users/',
+  path: '/users/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedTeamsIndexRoute = AuthenticatedTeamsIndexRouteImport.update({
+  id: '/teams/',
+  path: '/teams/',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedSitesIndexRoute = AuthenticatedSitesIndexRouteImport.update({
   id: '/sites/',
@@ -82,6 +94,8 @@ export interface FileRoutesByFullPath {
   '/sites/new': typeof AuthenticatedSitesNewRoute
   '/servers/': typeof AuthenticatedServersIndexRoute
   '/sites/': typeof AuthenticatedSitesIndexRoute
+  '/teams/': typeof AuthenticatedTeamsIndexRoute
+  '/users/': typeof AuthenticatedUsersIndexRoute
 }
 export interface FileRoutesByTo {
   '/sign-in': typeof authSignInRoute
@@ -93,6 +107,8 @@ export interface FileRoutesByTo {
   '/sites/new': typeof AuthenticatedSitesNewRoute
   '/servers': typeof AuthenticatedServersIndexRoute
   '/sites': typeof AuthenticatedSitesIndexRoute
+  '/teams': typeof AuthenticatedTeamsIndexRoute
+  '/users': typeof AuthenticatedUsersIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -106,6 +122,8 @@ export interface FileRoutesById {
   '/_authenticated/sites/new': typeof AuthenticatedSitesNewRoute
   '/_authenticated/servers/': typeof AuthenticatedServersIndexRoute
   '/_authenticated/sites/': typeof AuthenticatedSitesIndexRoute
+  '/_authenticated/teams/': typeof AuthenticatedTeamsIndexRoute
+  '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -119,6 +137,8 @@ export interface FileRouteTypes {
     | '/sites/new'
     | '/servers/'
     | '/sites/'
+    | '/teams/'
+    | '/users/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/sign-in'
@@ -130,6 +150,8 @@ export interface FileRouteTypes {
     | '/sites/new'
     | '/servers'
     | '/sites'
+    | '/teams'
+    | '/users'
   id:
     | '__root__'
     | '/_authenticated'
@@ -142,6 +164,8 @@ export interface FileRouteTypes {
     | '/_authenticated/sites/new'
     | '/_authenticated/servers/'
     | '/_authenticated/sites/'
+    | '/_authenticated/teams/'
+    | '/_authenticated/users/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -171,6 +195,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/sign-in'
       preLoaderRoute: typeof authSignInRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/users/': {
+      id: '/_authenticated/users/'
+      path: '/users'
+      fullPath: '/users/'
+      preLoaderRoute: typeof AuthenticatedUsersIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/teams/': {
+      id: '/_authenticated/teams/'
+      path: '/teams'
+      fullPath: '/teams/'
+      preLoaderRoute: typeof AuthenticatedTeamsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/sites/': {
       id: '/_authenticated/sites/'
@@ -233,6 +271,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSitesNewRoute: typeof AuthenticatedSitesNewRoute
   AuthenticatedServersIndexRoute: typeof AuthenticatedServersIndexRoute
   AuthenticatedSitesIndexRoute: typeof AuthenticatedSitesIndexRoute
+  AuthenticatedTeamsIndexRoute: typeof AuthenticatedTeamsIndexRoute
+  AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -244,6 +284,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSitesNewRoute: AuthenticatedSitesNewRoute,
   AuthenticatedServersIndexRoute: AuthenticatedServersIndexRoute,
   AuthenticatedSitesIndexRoute: AuthenticatedSitesIndexRoute,
+  AuthenticatedTeamsIndexRoute: AuthenticatedTeamsIndexRoute,
+  AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

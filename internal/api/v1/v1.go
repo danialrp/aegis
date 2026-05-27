@@ -48,6 +48,9 @@ func Mount(r chi.Router, d MountDeps) {
 	dockerH := NewDockerHandler(d.Queries, d.Audit, d.Hub, d.Logger)
 	databasesH := NewDatabasesHandler(d.Queries, d.Audit, d.Hub, d.Logger)
 	terminalH := NewTerminalHandler(d.Queries, d.Audit, d.Hub, d.Logger)
+	usersH := NewUsersHandler(d.Queries, d.Audit, d.Logger)
+	teamsH := NewTeamsHandler(d.Queries, d.Audit, d.Logger)
+	sitePermH := NewSitePermissionsHandler(d.Queries, d.Audit, d.Logger)
 
 	r.Route("/v1", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
@@ -124,6 +127,30 @@ func Mount(r chi.Router, d MountDeps) {
 
 			// Terminal — Phase 6.
 			r.Post("/sites/{id}/terminal/ticket", terminalH.Ticket)
+
+			// Users — Phase 7. god + admin only (already enforced by
+			// the surrounding group). Internal handler checks role for
+			// god-only mutations.
+			r.Get("/users", usersH.List)
+			r.Get("/users/{id}", usersH.Get)
+			r.Post("/users", usersH.Create)
+			r.Patch("/users/{id}", usersH.Update)
+			r.Delete("/users/{id}", usersH.Delete)
+
+			// Teams — Phase 7.
+			r.Get("/teams", teamsH.List)
+			r.Get("/teams/{id}", teamsH.Get)
+			r.Post("/teams", teamsH.Create)
+			r.Patch("/teams/{id}", teamsH.Update)
+			r.Delete("/teams/{id}", teamsH.Delete)
+			r.Get("/teams/{id}/members", teamsH.ListMembers)
+			r.Post("/teams/{id}/members", teamsH.AddMember)
+			r.Delete("/teams/{id}/members/{user_id}", teamsH.RemoveMember)
+
+			// Per-site permissions — Phase 7.
+			r.Get("/sites/{id}/permissions", sitePermH.List)
+			r.Post("/sites/{id}/permissions", sitePermH.Upsert)
+			r.Delete("/sites/{id}/permissions/{perm_id}", sitePermH.Delete)
 		})
 	})
 }

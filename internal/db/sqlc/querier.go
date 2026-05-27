@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	AddTeamMember(ctx context.Context, arg AddTeamMemberParams) error
 	AppendDeployOutput(ctx context.Context, arg AppendDeployOutputParams) error
 	ClearServerProvisionError(ctx context.Context, id int64) error
 	ClearSiteProvisionError(ctx context.Context, id int64) error
@@ -22,6 +23,7 @@ type Querier interface {
 	CreateSiteCert(ctx context.Context, arg CreateSiteCertParams) (SiteCert, error)
 	CreateSiteDaemon(ctx context.Context, arg CreateSiteDaemonParams) (SiteDaemon, error)
 	CreateSiteDatabase(ctx context.Context, arg CreateSiteDatabaseParams) (SiteDatabase, error)
+	CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteExpiredSessions(ctx context.Context) error
 	DeleteServer(ctx context.Context, id int64) error
@@ -31,6 +33,8 @@ type Querier interface {
 	DeleteSiteCert(ctx context.Context, id int64) error
 	DeleteSiteDaemon(ctx context.Context, id int64) error
 	DeleteSiteDatabase(ctx context.Context, id int64) error
+	DeleteSitePermission(ctx context.Context, arg DeleteSitePermissionParams) error
+	DeleteTeam(ctx context.Context, id int64) error
 	DeleteUser(ctx context.Context, id int64) error
 	GetDeploy(ctx context.Context, id int64) (Deploy, error)
 	GetDeployScript(ctx context.Context, siteID int64) (SiteDeployScript, error)
@@ -43,6 +47,7 @@ type Querier interface {
 	GetSiteDaemon(ctx context.Context, id int64) (SiteDaemon, error)
 	GetSiteDatabase(ctx context.Context, id int64) (SiteDatabase, error)
 	GetSiteWebhookSecret(ctx context.Context, id int64) (pgtype.Text, error)
+	GetTeam(ctx context.Context, id int64) (Team, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id int64) (User, error)
 	InsertDeployScriptVersion(ctx context.Context, arg InsertDeployScriptVersionParams) error
@@ -55,12 +60,17 @@ type Querier interface {
 	ListSiteCertsForSite(ctx context.Context, siteID int64) ([]SiteCert, error)
 	ListSiteDaemonsForSite(ctx context.Context, siteID int64) ([]SiteDaemon, error)
 	ListSiteDatabasesForSite(ctx context.Context, siteID int64) ([]SiteDatabase, error)
+	ListSitePermissions(ctx context.Context, siteID int64) ([]SitePermission, error)
 	ListSites(ctx context.Context) ([]Site, error)
 	ListSitesByServer(ctx context.Context, serverID int64) ([]Site, error)
+	ListTeamMembers(ctx context.Context, teamID int64) ([]ListTeamMembersRow, error)
+	ListTeams(ctx context.Context) ([]Team, error)
+	ListTeamsForUser(ctx context.Context, userID int64) ([]Team, error)
 	ListUsers(ctx context.Context) ([]User, error)
 	MarkDeployFinished(ctx context.Context, arg MarkDeployFinishedParams) error
 	MarkDeployRunning(ctx context.Context, id int64) error
 	RefreshSession(ctx context.Context, arg RefreshSessionParams) error
+	RemoveTeamMember(ctx context.Context, arg RemoveTeamMemberParams) error
 	SetServerAgentFingerprint(ctx context.Context, arg SetServerAgentFingerprintParams) error
 	SetServerProvisionError(ctx context.Context, arg SetServerProvisionErrorParams) error
 	SetServerStatus(ctx context.Context, arg SetServerStatusParams) error
@@ -75,12 +85,20 @@ type Querier interface {
 	SetSiteWorkingDir(ctx context.Context, arg SetSiteWorkingDirParams) error
 	SetUserEnabled(ctx context.Context, arg SetUserEnabledParams) error
 	SetUserMFASecret(ctx context.Context, arg SetUserMFASecretParams) error
+	// Returns the union of direct user perms + team-mediated perms a
+	// user holds for a site. Aggregated (OR-ed) at the SQL layer.
+	// BOOL_OR over zero rows yields NULL — COALESCE to false so the
+	// "no permissions" case comes back as an all-false row.
+	SitePermissionsForUser(ctx context.Context, arg SitePermissionsForUserParams) (SitePermissionsForUserRow, error)
 	TouchServerAgent(ctx context.Context, id int64) error
 	TouchSiteDatabaseBackup(ctx context.Context, id int64) error
 	UpdateSiteDaemonStatus(ctx context.Context, arg UpdateSiteDaemonStatusParams) error
+	UpdateTeam(ctx context.Context, arg UpdateTeamParams) (Team, error)
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	UpsertDeployScript(ctx context.Context, arg UpsertDeployScriptParams) (SiteDeployScript, error)
 	UpsertSiteCompose(ctx context.Context, arg UpsertSiteComposeParams) (SiteCompose, error)
+	UpsertSiteTeamPermission(ctx context.Context, arg UpsertSiteTeamPermissionParams) (SitePermission, error)
+	UpsertSiteUserPermission(ctx context.Context, arg UpsertSiteUserPermissionParams) (SitePermission, error)
 }
 
 var _ Querier = (*Queries)(nil)

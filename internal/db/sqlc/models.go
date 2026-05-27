@@ -133,6 +133,36 @@ type SiteDeployScriptVersion struct {
 	SavedBy pgtype.Int8
 }
 
+type SitePermission struct {
+	ID           int64
+	SiteID       int64
+	UserID       pgtype.Int8
+	TeamID       pgtype.Int8
+	PermRead     bool
+	PermExecute  bool
+	PermWrite    bool
+	PermLogs     bool
+	PermTerminal bool
+	PermInspect  bool
+	CreatedAt    pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
+}
+
+type Team struct {
+	ID          int64
+	Name        string
+	Description pgtype.Text
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
+type TeamMember struct {
+	TeamID     int64
+	UserID     int64
+	RoleInTeam string
+	AddedAt    pgtype.Timestamptz
+}
+
 type User struct {
 	ID           int64
 	Email        string
