@@ -12,9 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as authSignInRouteImport } from './routes/(auth)/sign-in'
+import { Route as AuthenticatedSitesIndexRouteImport } from './routes/_authenticated/sites/index'
 import { Route as AuthenticatedServersIndexRouteImport } from './routes/_authenticated/servers/index'
+import { Route as AuthenticatedSitesNewRouteImport } from './routes/_authenticated/sites/new'
+import { Route as AuthenticatedSitesIdRouteImport } from './routes/_authenticated/sites/$id'
 import { Route as AuthenticatedServersNewRouteImport } from './routes/_authenticated/servers/new'
 import { Route as AuthenticatedServersIdRouteImport } from './routes/_authenticated/servers/$id'
+import { Route as AuthenticatedDeploysDeployIdRouteImport } from './routes/_authenticated/deploys/$deployId'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
@@ -30,12 +34,27 @@ const authSignInRoute = authSignInRouteImport.update({
   path: '/sign-in',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedSitesIndexRoute = AuthenticatedSitesIndexRouteImport.update({
+  id: '/sites/',
+  path: '/sites/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedServersIndexRoute =
   AuthenticatedServersIndexRouteImport.update({
     id: '/servers/',
     path: '/servers/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedSitesNewRoute = AuthenticatedSitesNewRouteImport.update({
+  id: '/sites/new',
+  path: '/sites/new',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSitesIdRoute = AuthenticatedSitesIdRouteImport.update({
+  id: '/sites/$id',
+  path: '/sites/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedServersNewRoute = AuthenticatedServersNewRouteImport.update({
   id: '/servers/new',
   path: '/servers/new',
@@ -46,43 +65,83 @@ const AuthenticatedServersIdRoute = AuthenticatedServersIdRouteImport.update({
   path: '/servers/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDeploysDeployIdRoute =
+  AuthenticatedDeploysDeployIdRouteImport.update({
+    id: '/deploys/$deployId',
+    path: '/deploys/$deployId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/sign-in': typeof authSignInRoute
+  '/deploys/$deployId': typeof AuthenticatedDeploysDeployIdRoute
   '/servers/$id': typeof AuthenticatedServersIdRoute
   '/servers/new': typeof AuthenticatedServersNewRoute
+  '/sites/$id': typeof AuthenticatedSitesIdRoute
+  '/sites/new': typeof AuthenticatedSitesNewRoute
   '/servers/': typeof AuthenticatedServersIndexRoute
+  '/sites/': typeof AuthenticatedSitesIndexRoute
 }
 export interface FileRoutesByTo {
   '/sign-in': typeof authSignInRoute
   '/': typeof AuthenticatedIndexRoute
+  '/deploys/$deployId': typeof AuthenticatedDeploysDeployIdRoute
   '/servers/$id': typeof AuthenticatedServersIdRoute
   '/servers/new': typeof AuthenticatedServersNewRoute
+  '/sites/$id': typeof AuthenticatedSitesIdRoute
+  '/sites/new': typeof AuthenticatedSitesNewRoute
   '/servers': typeof AuthenticatedServersIndexRoute
+  '/sites': typeof AuthenticatedSitesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/(auth)/sign-in': typeof authSignInRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/deploys/$deployId': typeof AuthenticatedDeploysDeployIdRoute
   '/_authenticated/servers/$id': typeof AuthenticatedServersIdRoute
   '/_authenticated/servers/new': typeof AuthenticatedServersNewRoute
+  '/_authenticated/sites/$id': typeof AuthenticatedSitesIdRoute
+  '/_authenticated/sites/new': typeof AuthenticatedSitesNewRoute
   '/_authenticated/servers/': typeof AuthenticatedServersIndexRoute
+  '/_authenticated/sites/': typeof AuthenticatedSitesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/sign-in' | '/servers/$id' | '/servers/new' | '/servers/'
+  fullPaths:
+    | '/'
+    | '/sign-in'
+    | '/deploys/$deployId'
+    | '/servers/$id'
+    | '/servers/new'
+    | '/sites/$id'
+    | '/sites/new'
+    | '/servers/'
+    | '/sites/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/sign-in' | '/' | '/servers/$id' | '/servers/new' | '/servers'
+  to:
+    | '/sign-in'
+    | '/'
+    | '/deploys/$deployId'
+    | '/servers/$id'
+    | '/servers/new'
+    | '/sites/$id'
+    | '/sites/new'
+    | '/servers'
+    | '/sites'
   id:
     | '__root__'
     | '/_authenticated'
     | '/(auth)/sign-in'
     | '/_authenticated/'
+    | '/_authenticated/deploys/$deployId'
     | '/_authenticated/servers/$id'
     | '/_authenticated/servers/new'
+    | '/_authenticated/sites/$id'
+    | '/_authenticated/sites/new'
     | '/_authenticated/servers/'
+    | '/_authenticated/sites/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -113,11 +172,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof authSignInRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/sites/': {
+      id: '/_authenticated/sites/'
+      path: '/sites'
+      fullPath: '/sites/'
+      preLoaderRoute: typeof AuthenticatedSitesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/servers/': {
       id: '/_authenticated/servers/'
       path: '/servers'
       fullPath: '/servers/'
       preLoaderRoute: typeof AuthenticatedServersIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/sites/new': {
+      id: '/_authenticated/sites/new'
+      path: '/sites/new'
+      fullPath: '/sites/new'
+      preLoaderRoute: typeof AuthenticatedSitesNewRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/sites/$id': {
+      id: '/_authenticated/sites/$id'
+      path: '/sites/$id'
+      fullPath: '/sites/$id'
+      preLoaderRoute: typeof AuthenticatedSitesIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/servers/new': {
@@ -134,21 +214,36 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedServersIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/deploys/$deployId': {
+      id: '/_authenticated/deploys/$deployId'
+      path: '/deploys/$deployId'
+      fullPath: '/deploys/$deployId'
+      preLoaderRoute: typeof AuthenticatedDeploysDeployIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedDeploysDeployIdRoute: typeof AuthenticatedDeploysDeployIdRoute
   AuthenticatedServersIdRoute: typeof AuthenticatedServersIdRoute
   AuthenticatedServersNewRoute: typeof AuthenticatedServersNewRoute
+  AuthenticatedSitesIdRoute: typeof AuthenticatedSitesIdRoute
+  AuthenticatedSitesNewRoute: typeof AuthenticatedSitesNewRoute
   AuthenticatedServersIndexRoute: typeof AuthenticatedServersIndexRoute
+  AuthenticatedSitesIndexRoute: typeof AuthenticatedSitesIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedDeploysDeployIdRoute: AuthenticatedDeploysDeployIdRoute,
   AuthenticatedServersIdRoute: AuthenticatedServersIdRoute,
   AuthenticatedServersNewRoute: AuthenticatedServersNewRoute,
+  AuthenticatedSitesIdRoute: AuthenticatedSitesIdRoute,
+  AuthenticatedSitesNewRoute: AuthenticatedSitesNewRoute,
   AuthenticatedServersIndexRoute: AuthenticatedServersIndexRoute,
+  AuthenticatedSitesIndexRoute: AuthenticatedSitesIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

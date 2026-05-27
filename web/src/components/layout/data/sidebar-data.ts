@@ -1,4 +1,4 @@
-import { LayoutDashboard, Server } from 'lucide-react'
+import { Globe, LayoutDashboard, Server } from 'lucide-react'
 import { type SidebarData } from '../types'
 
 // Aegis sidebar — intentionally minimal in Phase 0. New nav groups are
@@ -23,6 +23,11 @@ export const sidebarData: SidebarData = {
           title: 'Servers',
           url: '/servers',
           icon: Server,
+        },
+        {
+          title: 'Sites',
+          url: '/sites',
+          icon: Globe,
         },
       ],
     },

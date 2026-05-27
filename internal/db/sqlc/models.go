@@ -21,6 +21,19 @@ type AuditLog struct {
 	CreatedAt   pgtype.Timestamptz
 }
 
+type Deploy struct {
+	ID          int64
+	SiteID      int64
+	Trigger     string
+	Status      string
+	StartedAt   pgtype.Timestamptz
+	FinishedAt  pgtype.Timestamptz
+	ExitCode    pgtype.Int4
+	OutputLog   string
+	TriggeredBy pgtype.Int8
+	CreatedAt   pgtype.Timestamptz
+}
+
 type Server struct {
 	ID               int64
 	Name             string
@@ -42,6 +55,35 @@ type Session struct {
 	RefreshedAt pgtype.Timestamptz
 	Ip          *netip.Addr
 	UserAgent   pgtype.Text
+}
+
+type Site struct {
+	ID              int64
+	ServerID        int64
+	Name            string
+	Domain          string
+	SiteType        string
+	ProvisionStatus string
+	ProvisionError  pgtype.Text
+	WorkingDir      string
+	CreatedAt       pgtype.Timestamptz
+	UpdatedAt       pgtype.Timestamptz
+	WebhookSecret   pgtype.Text
+}
+
+type SiteDeployScript struct {
+	SiteID    int64
+	Body      string
+	CronSpec  pgtype.Text
+	UpdatedAt pgtype.Timestamptz
+}
+
+type SiteDeployScriptVersion struct {
+	ID      int64
+	SiteID  int64
+	Body    string
+	SavedAt pgtype.Timestamptz
+	SavedBy pgtype.Int8
 }
 
 type User struct {

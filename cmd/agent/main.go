@@ -16,9 +16,11 @@ import (
 
 	"github.com/danialrp/aegis/internal/agent/config"
 	"github.com/danialrp/aegis/internal/agent/dialer"
+	"github.com/danialrp/aegis/internal/agent/host"
 	"github.com/danialrp/aegis/internal/agent/rpc"
 	"github.com/danialrp/aegis/internal/logging"
 	"github.com/danialrp/aegis/internal/version"
+	"github.com/danialrp/aegis/pkg/protocol"
 )
 
 func main() {
@@ -50,6 +52,16 @@ func run() error {
 	}
 
 	handler := rpc.New(logger)
+
+	// Host-management RPCs (Phase 1.2+).
+	hostMgr := host.New(logger)
+	handler.Register(protocol.MethodHostSiteUserCreate, hostMgr.HandleSiteUserCreate)
+	handler.Register(protocol.MethodHostSiteDirEnsure, hostMgr.HandleSiteDirEnsure)
+	handler.Register(protocol.MethodHostSiteDelete, hostMgr.HandleSiteDelete)
+	handler.Register(protocol.MethodHostNginxApplyVhost, hostMgr.HandleNginxApplyVhost)
+	handler.Register(protocol.MethodHostNginxRemoveVhost, hostMgr.HandleNginxRemoveVhost)
+	handler.Register(protocol.MethodHostSiteRunScript, hostMgr.HandleSiteRunScript)
+
 	d := dialer.New(cfg.ControllerURL, tlsCfg, handler, logger)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

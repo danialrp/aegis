@@ -71,3 +71,60 @@ type PongResult struct {
 
 // MethodPing is the canonical method name for the echo RPC.
 const MethodPing = "ping"
+
+// --- Host primitives (controller → agent) ---
+
+// Host primitive methods. Each shells out to a vetted helper script
+// dropped by the bootstrap; the agent never assembles shell strings.
+const (
+	// Phase 1.2 — site lifecycle.
+	MethodHostSiteUserCreate = "host.site_user_create"
+	MethodHostSiteDirEnsure  = "host.site_dir_ensure"
+	MethodHostSiteDelete     = "host.site_delete"
+
+	// Phase 1.3 — nginx vhost.
+	MethodHostNginxApplyVhost  = "host.nginx_apply_vhost"
+	MethodHostNginxRemoveVhost = "host.nginx_remove_vhost"
+
+	// Phase 1.5 — exec a deploy script as site_<id>.
+	MethodHostSiteRunScript = "host.site_run_script"
+)
+
+// SiteIDParams is the shared payload for site-targeted host RPCs that
+// only need the site id.
+type SiteIDParams struct {
+	SiteID int64 `json:"site_id"`
+}
+
+// NginxApplyVhostParams is the payload for host.nginx_apply_vhost.
+type NginxApplyVhostParams struct {
+	SiteID     int64  `json:"site_id"`
+	Domain     string `json:"domain"`
+	WorkingDir string `json:"working_dir"`
+}
+
+// RunScriptParams is the payload for host.site_run_script.
+type RunScriptParams struct {
+	SiteID     int64             `json:"site_id"`
+	ScriptBody string            `json:"script_body"`
+	EnvVars    map[string]string `json:"env_vars,omitempty"`
+}
+
+// RunScriptResult is the response from host.site_run_script. Output
+// is the merged stdout+stderr of the deploy script.
+//
+// Phase 1.5 returns the whole output in one go and lets the UI poll.
+// A streaming variant (per-line events) is a future refinement; the
+// poll-based contract above the wire stays stable.
+type RunScriptResult struct {
+	ExitCode int    `json:"exit_code"`
+	Output   string `json:"output"`
+}
+
+// HostOKResult is the trivial success response from a host RPC: the
+// stdout from the helper, in case the caller wants to log it. Empty
+// on success is fine.
+type HostOKResult struct {
+	Stdout string `json:"stdout,omitempty"`
+	Stderr string `json:"stderr,omitempty"`
+}

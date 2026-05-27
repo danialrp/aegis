@@ -89,6 +89,29 @@ func (p *SSHProvisioner) Provision(ctx context.Context, t Target) error {
 		{"write unit", func() error {
 			return uploadFile(client, []byte(SystemdUnit()), "/etc/systemd/system/aegis-agent.service", "0644", "root:root")
 		}},
+		{"ensure helper dir", func() error {
+			return runSudoSteps(client, []string{"install -d -m 0755 " + HelperDir})
+		}},
+		{"upload helpers", func() error {
+			for _, h := range Helpers() {
+				if err := uploadFile(client, []byte(h.Body), h.Path, h.Mode, "root:root"); err != nil {
+					return err
+				}
+			}
+			return nil
+		}},
+		{"write sudoers", func() error {
+			// visudo verifies syntax before adopting; we use `tee` to write
+			// then `visudo -cf` to validate, then mv into place atomically.
+			tmp := "/etc/sudoers.d/aegis.new"
+			if err := uploadFile(client, []byte(SudoersBody), tmp, "0440", "root:root"); err != nil {
+				return err
+			}
+			return runSudoSteps(client, []string{
+				"visudo -cf " + tmp,
+				"mv " + tmp + " /etc/sudoers.d/aegis",
+			})
+		}},
 		{"start service", func() error {
 			return runSudoSteps(client, []string{
 				"systemctl daemon-reload",

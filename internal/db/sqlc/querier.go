@@ -11,32 +11,54 @@ import (
 )
 
 type Querier interface {
+	AppendDeployOutput(ctx context.Context, arg AppendDeployOutputParams) error
 	ClearServerProvisionError(ctx context.Context, id int64) error
+	ClearSiteProvisionError(ctx context.Context, id int64) error
 	CreateAuditEvent(ctx context.Context, arg CreateAuditEventParams) (AuditLog, error)
+	CreateDeploy(ctx context.Context, arg CreateDeployParams) (Deploy, error)
 	CreateServer(ctx context.Context, arg CreateServerParams) (Server, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
+	CreateSite(ctx context.Context, arg CreateSiteParams) (Site, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteExpiredSessions(ctx context.Context) error
 	DeleteServer(ctx context.Context, id int64) error
 	DeleteSession(ctx context.Context, id pgtype.UUID) error
 	DeleteSessionsForUser(ctx context.Context, userID int64) error
+	DeleteSite(ctx context.Context, id int64) error
 	DeleteUser(ctx context.Context, id int64) error
+	GetDeploy(ctx context.Context, id int64) (Deploy, error)
+	GetDeployScript(ctx context.Context, siteID int64) (SiteDeployScript, error)
 	GetServer(ctx context.Context, id int64) (Server, error)
 	GetSession(ctx context.Context, id pgtype.UUID) (Session, error)
+	GetSite(ctx context.Context, id int64) (Site, error)
+	GetSiteWebhookSecret(ctx context.Context, id int64) (pgtype.Text, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id int64) (User, error)
+	InsertDeployScriptVersion(ctx context.Context, arg InsertDeployScriptVersionParams) error
 	ListAuditByActor(ctx context.Context, arg ListAuditByActorParams) ([]AuditLog, error)
 	ListAuditByTarget(ctx context.Context, arg ListAuditByTargetParams) ([]AuditLog, error)
+	ListDeployScriptVersions(ctx context.Context, arg ListDeployScriptVersionsParams) ([]SiteDeployScriptVersion, error)
+	ListDeploysForSite(ctx context.Context, arg ListDeploysForSiteParams) ([]Deploy, error)
+	ListScheduledDeployScripts(ctx context.Context) ([]ListScheduledDeployScriptsRow, error)
 	ListServers(ctx context.Context) ([]Server, error)
+	ListSites(ctx context.Context) ([]Site, error)
+	ListSitesByServer(ctx context.Context, serverID int64) ([]Site, error)
 	ListUsers(ctx context.Context) ([]User, error)
+	MarkDeployFinished(ctx context.Context, arg MarkDeployFinishedParams) error
+	MarkDeployRunning(ctx context.Context, id int64) error
 	RefreshSession(ctx context.Context, arg RefreshSessionParams) error
 	SetServerAgentFingerprint(ctx context.Context, arg SetServerAgentFingerprintParams) error
 	SetServerProvisionError(ctx context.Context, arg SetServerProvisionErrorParams) error
 	SetServerStatus(ctx context.Context, arg SetServerStatusParams) error
+	SetSiteProvisionError(ctx context.Context, arg SetSiteProvisionErrorParams) error
+	SetSiteStatus(ctx context.Context, arg SetSiteStatusParams) error
+	SetSiteWebhookSecret(ctx context.Context, arg SetSiteWebhookSecretParams) error
+	SetSiteWorkingDir(ctx context.Context, arg SetSiteWorkingDirParams) error
 	SetUserEnabled(ctx context.Context, arg SetUserEnabledParams) error
 	SetUserMFASecret(ctx context.Context, arg SetUserMFASecretParams) error
 	TouchServerAgent(ctx context.Context, id int64) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
+	UpsertDeployScript(ctx context.Context, arg UpsertDeployScriptParams) (SiteDeployScript, error)
 }
 
 var _ Querier = (*Queries)(nil)

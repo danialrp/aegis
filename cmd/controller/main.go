@@ -122,6 +122,19 @@ func run() error {
 		WaitTimeout:   cfg.ProvisionTimeout,
 		Logger:        logger,
 	})
+	river.AddWorker(workers, &jobs.ProvisionSiteWorker{
+		Queries: queries,
+		Audit:   auditRec,
+		Hub:     hub,
+		Logger:  logger,
+	})
+	river.AddWorker(workers, &jobs.RunDeployWorker{
+		Queries:       queries,
+		Audit:         auditRec,
+		Hub:           hub,
+		Logger:        logger,
+		DeployTimeout: cfg.DeployTimeout,
+	})
 	rt, err := jobs.Setup(pool, logger, workers)
 	if err != nil {
 		return fmt.Errorf("setup river: %w", err)
@@ -134,6 +147,17 @@ func run() error {
 		defer cancel()
 		_ = rt.Stop(stopCtx)
 	}()
+
+	// Cron-driven deploy scheduler (Phase 1.7). Re-syncs from the DB
+	// every 30s so UI edits take effect quickly.
+	cronSched := jobs.NewCronScheduler(queries, rt.Client(), logger)
+	go func() {
+		if err := cronSched.Run(ctx); err != nil &&
+			!errors.Is(err, context.Canceled) {
+			logger.Error("cron scheduler stopped", "err", err)
+		}
+	}()
+	logger.Info("cron scheduler started")
 
 	spaFS, err := web.FS()
 	if err != nil {

@@ -48,6 +48,10 @@ type Config struct {
 	// Server provisioning.
 	ProvisionTimeout       time.Duration `env:"AEGIS_PROVISION_TIMEOUT"    envDefault:"10m"`
 	AgentPublicURLOverride string        `env:"AEGIS_AGENT_PUBLIC_URL"     envDefault:""`
+
+	// Per-deploy wall-clock cap. Forge's hard 10m is the bar we're
+	// clearing here.
+	DeployTimeout time.Duration `env:"AEGIS_DEPLOY_TIMEOUT" envDefault:"30m"`
 }
 
 // AgentPublicURL returns the WSS URL that provisioned agents will dial.
