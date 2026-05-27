@@ -45,6 +45,7 @@ func Mount(r chi.Router, d MountDeps) {
 	deploysH := NewDeploysHandler(d.Queries, d.Audit, d.RiverClient, d.Logger)
 	sslH := NewSSLHandler(d.Queries, d.Audit, d.RiverClient, d.LetsEncryptEmail, d.Logger)
 	daemonsH := NewDaemonsHandler(d.Queries, d.Audit, d.Hub, d.Logger)
+	dockerH := NewDockerHandler(d.Queries, d.Audit, d.Hub, d.Logger)
 
 	r.Route("/v1", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
@@ -97,6 +98,13 @@ func Mount(r chi.Router, d MountDeps) {
 			r.Delete("/sites/{id}/daemons/{daemon_id}", daemonsH.Delete)
 			r.Post("/sites/{id}/daemons/{daemon_id}/action", daemonsH.Action)
 			r.Get("/sites/{id}/daemons/{daemon_id}/logs", daemonsH.Logs)
+
+			// Docker compose — Phase 3.
+			r.Get("/sites/{id}/compose", dockerH.GetCompose)
+			r.Put("/sites/{id}/compose", dockerH.PutCompose)
+			r.Post("/sites/{id}/compose/action", dockerH.Action)
+			r.Get("/sites/{id}/containers", dockerH.ListContainers)
+			r.Get("/sites/{id}/containers/{service}/logs", dockerH.ContainerLogs)
 		})
 	})
 }

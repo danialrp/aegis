@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { deleteSite, getSite } from './api'
+import { ComposeEditor } from './compose-editor'
+import { ContainersPanel } from './containers-panel'
 import { DaemonsPanel } from './daemons-panel'
 import { DeployScriptEditor } from './deploy-script-editor'
 import { DeploysPanel } from './deploys-panel'
@@ -90,6 +92,13 @@ export function SiteDetail({ id }: { id: number }) {
             </dl>
 
             <SSLPanel siteID={data.id} />
+
+            {data.site_type === 'docker' && (
+              <>
+                <ComposeEditor siteID={data.id} />
+                <ContainersPanel siteID={data.id} />
+              </>
+            )}
 
             <DeployScriptEditor siteID={data.id} />
 

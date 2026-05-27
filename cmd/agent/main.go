@@ -68,6 +68,11 @@ func run() error {
 	handler.Register(protocol.MethodHostDaemonRemove, hostMgr.HandleDaemonRemove)
 	handler.Register(protocol.MethodHostDaemonAction, hostMgr.HandleDaemonAction)
 	handler.Register(protocol.MethodHostDaemonLogs, hostMgr.HandleDaemonLogs)
+	handler.Register(protocol.MethodHostNginxApplyProxyVhost, hostMgr.HandleNginxApplyProxyVhost)
+	handler.Register(protocol.MethodHostComposeWrite, hostMgr.HandleComposeWrite)
+	handler.Register(protocol.MethodHostComposeAction, hostMgr.HandleComposeAction)
+	handler.Register(protocol.MethodHostComposePs, hostMgr.HandleComposePs)
+	handler.Register(protocol.MethodHostComposeLogs, hostMgr.HandleComposeLogs)
 
 	d := dialer.New(cfg.ControllerURL, tlsCfg, handler, logger)
 

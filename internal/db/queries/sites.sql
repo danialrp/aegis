@@ -48,3 +48,9 @@ UPDATE sites
    SET webhook_secret = $2,
        updated_at     = now()
  WHERE id = $1;
+
+-- name: SetSiteProxyPort :exec
+UPDATE sites
+   SET proxy_port = $2,
+       updated_at = now()
+ WHERE id = $1;

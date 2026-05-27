@@ -37,6 +37,7 @@ type Querier interface {
 	GetSite(ctx context.Context, id int64) (Site, error)
 	GetSiteCert(ctx context.Context, id int64) (SiteCert, error)
 	GetSiteCertByDomain(ctx context.Context, arg GetSiteCertByDomainParams) (SiteCert, error)
+	GetSiteCompose(ctx context.Context, siteID int64) (SiteCompose, error)
 	GetSiteDaemon(ctx context.Context, id int64) (SiteDaemon, error)
 	GetSiteWebhookSecret(ctx context.Context, id int64) (pgtype.Text, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
@@ -63,6 +64,7 @@ type Querier interface {
 	SetSiteCertIssued(ctx context.Context, arg SetSiteCertIssuedParams) error
 	SetSiteCertStatus(ctx context.Context, arg SetSiteCertStatusParams) error
 	SetSiteProvisionError(ctx context.Context, arg SetSiteProvisionErrorParams) error
+	SetSiteProxyPort(ctx context.Context, arg SetSiteProxyPortParams) error
 	SetSiteStatus(ctx context.Context, arg SetSiteStatusParams) error
 	SetSiteWebhookSecret(ctx context.Context, arg SetSiteWebhookSecretParams) error
 	SetSiteWorkingDir(ctx context.Context, arg SetSiteWorkingDirParams) error
@@ -72,6 +74,7 @@ type Querier interface {
 	UpdateSiteDaemonStatus(ctx context.Context, arg UpdateSiteDaemonStatusParams) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	UpsertDeployScript(ctx context.Context, arg UpsertDeployScriptParams) (SiteDeployScript, error)
+	UpsertSiteCompose(ctx context.Context, arg UpsertSiteComposeParams) (SiteCompose, error)
 }
 
 var _ Querier = (*Queries)(nil)

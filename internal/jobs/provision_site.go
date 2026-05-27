@@ -96,20 +96,38 @@ func (w *ProvisionSiteWorker) run(ctx context.Context, site sqlc.Site, log *slog
 		}
 	}
 
-	// nginx vhost. Only `static` sites get a vhost in Phase 1; php /
-	// docker site types land with their own templates in later phases.
-	if site.SiteType == "static" {
-		log.Info("step", "name", "apply nginx vhost")
-		vhostParams := protocol.NginxApplyVhostParams{
+	// nginx vhost. Two variants today:
+	//   static — root-served file site (Phase 1.3)
+	//   docker — reverse-proxy to 127.0.0.1:proxy_port (Phase 3)
+	switch site.SiteType {
+	case "static":
+		log.Info("step", "name", "apply static nginx vhost")
+		callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		_, err := conn.Request(callCtx, protocol.MethodHostNginxApplyVhost, protocol.NginxApplyVhostParams{
 			SiteID:     site.ID,
 			Domain:     site.Domain,
 			WorkingDir: site.WorkingDir,
-		}
-		callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
-		_, err := conn.Request(callCtx, protocol.MethodHostNginxApplyVhost, vhostParams)
+		})
 		cancel()
 		if err != nil {
 			return fmt.Errorf("nginx apply: %w", err)
+		}
+	case "docker":
+		if !site.ProxyPort.Valid {
+			// No port chosen yet — operator will set one and re-provision.
+			log.Info("skipping nginx vhost: proxy_port unset")
+			return nil
+		}
+		log.Info("step", "name", "apply docker proxy vhost", "port", site.ProxyPort.Int32)
+		callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		_, err := conn.Request(callCtx, protocol.MethodHostNginxApplyProxyVhost, protocol.NginxApplyProxyVhostParams{
+			SiteID:    site.ID,
+			Domain:    site.Domain,
+			ProxyPort: int(site.ProxyPort.Int32),
+		})
+		cancel()
+		if err != nil {
+			return fmt.Errorf("nginx apply (proxy): %w", err)
 		}
 	}
 	return nil

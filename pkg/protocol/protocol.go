@@ -99,7 +99,52 @@ const (
 	MethodHostDaemonRemove = "host.daemon_remove"
 	MethodHostDaemonAction = "host.daemon_action"
 	MethodHostDaemonLogs   = "host.daemon_logs"
+
+	// Phase 3 — docker compose lifecycle.
+	MethodHostNginxApplyProxyVhost = "host.nginx_apply_proxy_vhost"
+	MethodHostComposeWrite         = "host.compose_write"
+	MethodHostComposeAction        = "host.compose_action"
+	MethodHostComposePs            = "host.compose_ps"
+	MethodHostComposeLogs          = "host.compose_logs"
 )
+
+// NginxApplyProxyVhostParams configures a reverse-proxy vhost. nginx
+// listens on 80 for Domain and forwards to 127.0.0.1:ProxyPort.
+type NginxApplyProxyVhostParams struct {
+	SiteID    int64  `json:"site_id"`
+	Domain    string `json:"domain"`
+	ProxyPort int    `json:"proxy_port"`
+}
+
+// ComposeWriteParams persists a compose.yml under /srv/sites/<id>/.
+type ComposeWriteParams struct {
+	SiteID int64  `json:"site_id"`
+	Body   string `json:"body"`
+}
+
+// ComposeActionParams drives the lifecycle.
+type ComposeActionParams struct {
+	SiteID int64  `json:"site_id"`
+	Action string `json:"action"` // up | down | restart | pull | build
+}
+
+// ComposePsResult carries the raw json-lines output of `docker
+// compose ps --format json`. The controller parses it.
+type ComposePsResult struct {
+	Raw string `json:"raw"`
+}
+
+// ComposeLogsParams optionally narrows logs to a single service.
+type ComposeLogsParams struct {
+	SiteID  int64  `json:"site_id"`
+	Service string `json:"service,omitempty"`
+	Lines   int    `json:"lines,omitempty"`
+}
+
+// ComposeLogsResult is the merged log tail.
+type ComposeLogsResult struct {
+	Output string `json:"output"`
+}
 
 // CertIssueParams is the payload of host.cert_issue.
 type CertIssueParams struct {

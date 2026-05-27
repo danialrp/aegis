@@ -13,6 +13,7 @@ export interface Site {
   site_type: SiteType
   status: SiteStatus
   working_dir: string
+  proxy_port?: number | null
   provision_error?: string | null
   created_at: string
   updated_at: string
@@ -23,6 +24,7 @@ export interface CreateSiteInput {
   name: string
   domain: string
   site_type: SiteType
+  proxy_port?: number
 }
 
 export function listSites(): Promise<Site[]> {

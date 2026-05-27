@@ -30,6 +30,7 @@ export function NewSiteForm() {
   const [name, setName] = useState('')
   const [domain, setDomain] = useState('')
   const [siteType, setSiteType] = useState<SiteType>('static')
+  const [proxyPort, setProxyPort] = useState('8081')
 
   const mutation = useMutation({
     mutationFn: (input: CreateSiteInput) => createSite(input),
@@ -51,6 +52,7 @@ export function NewSiteForm() {
       name: name.trim(),
       domain: domain.trim(),
       site_type: siteType,
+      proxy_port: siteType === 'docker' ? Number(proxyPort) || 0 : undefined,
     })
   }
 
@@ -133,15 +135,31 @@ export function NewSiteForm() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value='static'>Static (HTML / SPA)</SelectItem>
+                  <SelectItem value='docker'>Docker (compose)</SelectItem>
                   <SelectItem value='php' disabled>
                     PHP — Phase 4
-                  </SelectItem>
-                  <SelectItem value='docker' disabled>
-                    Docker — Phase 3
                   </SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {siteType === 'docker' && (
+              <div className='grid gap-2'>
+                <Label htmlFor='port'>Upstream proxy port</Label>
+                <Input
+                  id='port'
+                  type='number'
+                  placeholder='8081'
+                  value={proxyPort}
+                  onChange={(e) => setProxyPort(e.target.value)}
+                />
+                <p className='text-muted-foreground text-xs'>
+                  nginx will proxy {domain || 'the domain'} →
+                  <span className='font-mono'> 127.0.0.1:{proxyPort || '<port>'}</span>.
+                  Bind one of your compose services to this port.
+                </p>
+              </div>
+            )}
 
             {errorMessage && (
               <p className='text-destructive text-sm'>{errorMessage}</p>

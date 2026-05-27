@@ -69,6 +69,7 @@ type Site struct {
 	CreatedAt       pgtype.Timestamptz
 	UpdatedAt       pgtype.Timestamptz
 	WebhookSecret   pgtype.Text
+	ProxyPort       pgtype.Int4
 }
 
 type SiteCert struct {
@@ -80,6 +81,12 @@ type SiteCert struct {
 	ExpiresAt pgtype.Timestamptz
 	LastError pgtype.Text
 	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+}
+
+type SiteCompose struct {
+	SiteID    int64
+	Body      string
 	UpdatedAt pgtype.Timestamptz
 }
 

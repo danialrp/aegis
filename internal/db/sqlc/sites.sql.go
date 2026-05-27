@@ -26,7 +26,7 @@ func (q *Queries) ClearSiteProvisionError(ctx context.Context, id int64) error {
 const createSite = `-- name: CreateSite :one
 INSERT INTO sites (server_id, name, domain, site_type, working_dir, provision_status)
 VALUES ($1, $2, $3, $4, $5, 'pending')
-RETURNING id, server_id, name, domain, site_type, provision_status, provision_error, working_dir, created_at, updated_at, webhook_secret
+RETURNING id, server_id, name, domain, site_type, provision_status, provision_error, working_dir, created_at, updated_at, webhook_secret, proxy_port
 `
 
 type CreateSiteParams struct {
@@ -58,6 +58,7 @@ func (q *Queries) CreateSite(ctx context.Context, arg CreateSiteParams) (Site, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.WebhookSecret,
+		&i.ProxyPort,
 	)
 	return i, err
 }
@@ -72,7 +73,7 @@ func (q *Queries) DeleteSite(ctx context.Context, id int64) error {
 }
 
 const getSite = `-- name: GetSite :one
-SELECT id, server_id, name, domain, site_type, provision_status, provision_error, working_dir, created_at, updated_at, webhook_secret FROM sites WHERE id = $1
+SELECT id, server_id, name, domain, site_type, provision_status, provision_error, working_dir, created_at, updated_at, webhook_secret, proxy_port FROM sites WHERE id = $1
 `
 
 func (q *Queries) GetSite(ctx context.Context, id int64) (Site, error) {
@@ -90,6 +91,7 @@ func (q *Queries) GetSite(ctx context.Context, id int64) (Site, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.WebhookSecret,
+		&i.ProxyPort,
 	)
 	return i, err
 }
@@ -106,7 +108,7 @@ func (q *Queries) GetSiteWebhookSecret(ctx context.Context, id int64) (pgtype.Te
 }
 
 const listSites = `-- name: ListSites :many
-SELECT id, server_id, name, domain, site_type, provision_status, provision_error, working_dir, created_at, updated_at, webhook_secret FROM sites ORDER BY id DESC
+SELECT id, server_id, name, domain, site_type, provision_status, provision_error, working_dir, created_at, updated_at, webhook_secret, proxy_port FROM sites ORDER BY id DESC
 `
 
 func (q *Queries) ListSites(ctx context.Context) ([]Site, error) {
@@ -130,6 +132,7 @@ func (q *Queries) ListSites(ctx context.Context) ([]Site, error) {
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.WebhookSecret,
+			&i.ProxyPort,
 		); err != nil {
 			return nil, err
 		}
@@ -142,7 +145,7 @@ func (q *Queries) ListSites(ctx context.Context) ([]Site, error) {
 }
 
 const listSitesByServer = `-- name: ListSitesByServer :many
-SELECT id, server_id, name, domain, site_type, provision_status, provision_error, working_dir, created_at, updated_at, webhook_secret FROM sites WHERE server_id = $1 ORDER BY id DESC
+SELECT id, server_id, name, domain, site_type, provision_status, provision_error, working_dir, created_at, updated_at, webhook_secret, proxy_port FROM sites WHERE server_id = $1 ORDER BY id DESC
 `
 
 func (q *Queries) ListSitesByServer(ctx context.Context, serverID int64) ([]Site, error) {
@@ -166,6 +169,7 @@ func (q *Queries) ListSitesByServer(ctx context.Context, serverID int64) ([]Site
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.WebhookSecret,
+			&i.ProxyPort,
 		); err != nil {
 			return nil, err
 		}
@@ -192,6 +196,23 @@ type SetSiteProvisionErrorParams struct {
 
 func (q *Queries) SetSiteProvisionError(ctx context.Context, arg SetSiteProvisionErrorParams) error {
 	_, err := q.db.Exec(ctx, setSiteProvisionError, arg.ID, arg.ProvisionError)
+	return err
+}
+
+const setSiteProxyPort = `-- name: SetSiteProxyPort :exec
+UPDATE sites
+   SET proxy_port = $2,
+       updated_at = now()
+ WHERE id = $1
+`
+
+type SetSiteProxyPortParams struct {
+	ID        int64
+	ProxyPort pgtype.Int4
+}
+
+func (q *Queries) SetSiteProxyPort(ctx context.Context, arg SetSiteProxyPortParams) error {
+	_, err := q.db.Exec(ctx, setSiteProxyPort, arg.ID, arg.ProxyPort)
 	return err
 }
 

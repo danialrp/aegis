@@ -45,6 +45,12 @@ func Helpers() []HelperFile {
 		{Path: HelperDir + "/daemon_remove", Mode: "0755", Body: daemonRemoveScript},
 		{Path: HelperDir + "/daemon_action", Mode: "0755", Body: daemonActionScript},
 		{Path: HelperDir + "/daemon_logs", Mode: "0755", Body: daemonLogsScript},
+		// Phase 3 — docker compose lifecycle.
+		{Path: HelperDir + "/nginx_write_proxy_vhost", Mode: "0755", Body: nginxWriteProxyVhostScript},
+		{Path: HelperDir + "/compose_write", Mode: "0755", Body: composeWriteScript},
+		{Path: HelperDir + "/compose_action", Mode: "0755", Body: composeActionScript},
+		{Path: HelperDir + "/compose_ps", Mode: "0755", Body: composePsScript},
+		{Path: HelperDir + "/compose_logs", Mode: "0755", Body: composeLogsScript},
 	}
 }
 
@@ -66,6 +72,11 @@ aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/daemon_write
 aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/daemon_remove
 aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/daemon_action
 aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/daemon_logs
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/nginx_write_proxy_vhost
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/compose_write
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/compose_action
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/compose_ps
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/compose_logs
 Defaults!/usr/local/lib/aegis/* !requiretty
 `
 
@@ -77,6 +88,10 @@ var BootstrapAptPackages = []string{
 	"certbot",
 	"python3-certbot-nginx",
 	"supervisor",
+	// Phase 3: docker engine + compose v2 plugin.
+	// Ubuntu 22.04+/Debian 12+ ship docker.io + docker-compose-v2.
+	"docker.io",
+	"docker-compose-v2",
 }
 
 const siteUseraddScript = `#!/bin/sh
@@ -435,5 +450,174 @@ fi
 if [ -r "$err" ]; then
   echo "----- stderr -----"
   tail -n "$lines" "$err"
+fi
+`
+
+const nginxWriteProxyVhostScript = `#!/bin/sh
+# Aegis helper: write a reverse-proxy nginx vhost for a docker-type
+# site. nginx → 127.0.0.1:<proxy_port>.
+# Args: <site_id> <domain> <proxy_port>
+set -eu
+
+site_id="${1:-}"
+domain="${2:-}"
+proxy_port="${3:-}"
+
+case "$site_id" in ''|*[!0-9]*) echo "site_id must be numeric" >&2; exit 2 ;; esac
+case "$domain" in
+  '') echo "domain required" >&2; exit 2 ;;
+  *[!a-z0-9.-]*) echo "domain has invalid chars" >&2; exit 2 ;;
+  .*|*..*|*-.*|*.-*) echo "domain is malformed" >&2; exit 2 ;;
+esac
+case "$proxy_port" in
+  ''|*[!0-9]*) echo "proxy_port must be numeric" >&2; exit 2 ;;
+esac
+if [ "$proxy_port" -lt 1 ] || [ "$proxy_port" -gt 65535 ]; then
+  echo "proxy_port out of range" >&2; exit 2
+fi
+
+vhost="/etc/nginx/sites-available/aegis-site-$site_id.conf"
+enabled="/etc/nginx/sites-enabled/aegis-site-$site_id.conf"
+
+cat >"$vhost" <<EOF
+# Aegis-managed proxy vhost for site $site_id — do not edit by hand.
+upstream aegis_site_$site_id {
+    server 127.0.0.1:$proxy_port;
+    keepalive 16;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name $domain;
+
+    location / {
+        proxy_pass http://aegis_site_$site_id;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    access_log /var/log/nginx/aegis-site-$site_id-access.log;
+    error_log /var/log/nginx/aegis-site-$site_id-error.log;
+}
+EOF
+
+ln -sf "$vhost" "$enabled"
+nginx -t
+systemctl reload nginx
+`
+
+const composeWriteScript = `#!/bin/sh
+# Aegis helper: write /srv/sites/<id>/compose.yml from stdin, owned by
+# site_<id>:site_<id>, mode 0640.
+# Args: <site_id>
+# Stdin: the compose file body.
+set -eu
+
+site_id="${1:-}"
+case "$site_id" in ''|*[!0-9]*) echo "site_id must be numeric" >&2; exit 2 ;; esac
+
+user="site_$site_id"
+dir="/srv/sites/$site_id"
+
+if ! id -u "$user" >/dev/null 2>&1; then
+  echo "user $user does not exist" >&2; exit 2
+fi
+if [ ! -d "$dir" ]; then
+  echo "dir $dir does not exist" >&2; exit 2
+fi
+
+tmp=$(mktemp)
+trap 'rm -f "$tmp"' EXIT
+cat >"$tmp"
+install -o "$user" -g "$user" -m 0640 "$tmp" "$dir/compose.yml"
+`
+
+const composeActionScript = `#!/bin/sh
+# Aegis helper: run docker compose lifecycle commands against
+# /srv/sites/<id>/compose.yml with project name aegis-site-<id>.
+# Args: <site_id> <action>   action in {up, down, restart, pull, build}
+set -eu
+
+site_id="${1:-}"
+action="${2:-}"
+case "$site_id" in ''|*[!0-9]*) echo "site_id must be numeric" >&2; exit 2 ;; esac
+case "$action" in
+  up|down|restart|pull|build) : ;;
+  *) echo "invalid action" >&2; exit 2 ;;
+esac
+
+dir="/srv/sites/$site_id"
+project="aegis-site-$site_id"
+
+if [ ! -r "$dir/compose.yml" ]; then
+  echo "no compose.yml at $dir" >&2; exit 2
+fi
+
+cd "$dir"
+case "$action" in
+  up)      exec docker compose -p "$project" up -d --remove-orphans ;;
+  down)    exec docker compose -p "$project" down ;;
+  restart) exec docker compose -p "$project" restart ;;
+  pull)    exec docker compose -p "$project" pull ;;
+  build)   exec docker compose -p "$project" build ;;
+esac
+`
+
+const composePsScript = `#!/bin/sh
+# Aegis helper: list containers for site <id>'s compose project as
+# JSON (one object per line — docker compose's --format json).
+# Args: <site_id>
+set -eu
+
+site_id="${1:-}"
+case "$site_id" in ''|*[!0-9]*) exit 2 ;; esac
+
+dir="/srv/sites/$site_id"
+project="aegis-site-$site_id"
+
+if [ ! -r "$dir/compose.yml" ]; then
+  exit 0   # no compose yet → empty output, not error
+fi
+
+cd "$dir"
+exec docker compose -p "$project" ps --all --format json
+`
+
+const composeLogsScript = `#!/bin/sh
+# Aegis helper: tail logs for the whole compose project (or a single
+# service).
+# Args: <site_id> <service-or-empty> <lines>
+set -eu
+
+site_id="${1:-}"
+service="${2:-}"
+lines="${3:-200}"
+
+case "$site_id" in ''|*[!0-9]*) exit 2 ;; esac
+case "$lines" in ''|*[!0-9]*) lines=200 ;; esac
+if [ "$lines" -gt 5000 ]; then lines=5000; fi
+case "$service" in
+  *[!a-zA-Z0-9_-]*) echo "service has invalid chars" >&2; exit 2 ;;
+esac
+
+dir="/srv/sites/$site_id"
+project="aegis-site-$site_id"
+if [ ! -r "$dir/compose.yml" ]; then
+  exit 0
+fi
+cd "$dir"
+
+if [ -z "$service" ]; then
+  exec docker compose -p "$project" logs --tail "$lines" --timestamps
+else
+  exec docker compose -p "$project" logs --tail "$lines" --timestamps -- "$service"
 fi
 `

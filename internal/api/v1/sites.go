@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/riverqueue/river"
 
 	"github.com/danialrp/aegis/internal/api/middleware"
@@ -39,10 +40,11 @@ func NewSitesHandler(q *sqlc.Queries, audit *audit.Recorder, rc *river.Client[pg
 // --- shapes ---
 
 type createSiteRequest struct {
-	ServerID int64  `json:"server_id"`
-	Name     string `json:"name"`
-	Domain   string `json:"domain"`
-	SiteType string `json:"site_type"`
+	ServerID  int64  `json:"server_id"`
+	Name      string `json:"name"`
+	Domain    string `json:"domain"`
+	SiteType  string `json:"site_type"`
+	ProxyPort int    `json:"proxy_port,omitempty"` // required for docker
 }
 
 type siteResponse struct {
@@ -53,6 +55,7 @@ type siteResponse struct {
 	SiteType       string  `json:"site_type"`
 	Status         string  `json:"status"`
 	WorkingDir     string  `json:"working_dir"`
+	ProxyPort      *int32  `json:"proxy_port,omitempty"`
 	ProvisionError *string `json:"provision_error,omitempty"`
 	CreatedAt      string  `json:"created_at"`
 	UpdatedAt      string  `json:"updated_at"`
@@ -163,6 +166,18 @@ func (h *SitesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		h.logger.WarnContext(r.Context(), "set working_dir", "err", err)
 	}
 
+	// Docker sites carry the upstream port the nginx vhost forwards to.
+	if req.SiteType == "docker" && req.ProxyPort > 0 {
+		port := pgtype.Int4{Int32: int32(req.ProxyPort), Valid: true} //nolint:gosec // validated 1..65535
+		if err := h.queries.SetSiteProxyPort(r.Context(), sqlc.SetSiteProxyPortParams{
+			ID: row.ID, ProxyPort: port,
+		}); err != nil {
+			h.logger.WarnContext(r.Context(), "set proxy_port", "err", err)
+		} else {
+			row.ProxyPort = port
+		}
+	}
+
 	// Enqueue host-side provisioning. Without a river client (e.g. in
 	// tests), we leave the row at status=pending so callers can still
 	// observe creation; in prod main wires the client.
@@ -225,6 +240,11 @@ func validateCreateSite(req *createSiteRequest) error {
 	if _, ok := validSiteTypes[req.SiteType]; !ok {
 		return errors.New("invalid_site_type")
 	}
+	if req.SiteType == "docker" {
+		if req.ProxyPort < 1 || req.ProxyPort > 65535 {
+			return errors.New("docker_requires_proxy_port")
+		}
+	}
 	return nil
 }
 
@@ -239,6 +259,10 @@ func toSiteResponse(s sqlc.Site) siteResponse {
 		WorkingDir: s.WorkingDir,
 		CreatedAt:  tsString(s.CreatedAt),
 		UpdatedAt:  tsString(s.UpdatedAt),
+	}
+	if s.ProxyPort.Valid {
+		v := s.ProxyPort.Int32
+		r.ProxyPort = &v
 	}
 	if s.ProvisionError.Valid {
 		v := s.ProvisionError.String
