@@ -55,6 +55,14 @@ func Helpers() []HelperFile {
 		{Path: HelperDir + "/php_fpm_pool_write", Mode: "0755", Body: phpFpmPoolWriteScript},
 		{Path: HelperDir + "/php_fpm_pool_remove", Mode: "0755", Body: phpFpmPoolRemoveScript},
 		{Path: HelperDir + "/nginx_write_php_vhost", Mode: "0755", Body: nginxWritePhpVhostScript},
+		// Phase 5 — database engines.
+		{Path: HelperDir + "/mysql_db_create", Mode: "0755", Body: mysqlDBCreateScript},
+		{Path: HelperDir + "/mysql_db_drop", Mode: "0755", Body: mysqlDBDropScript},
+		{Path: HelperDir + "/postgres_db_create", Mode: "0755", Body: postgresDBCreateScript},
+		{Path: HelperDir + "/postgres_db_drop", Mode: "0755", Body: postgresDBDropScript},
+		{Path: HelperDir + "/db_backup", Mode: "0755", Body: dbBackupScript},
+		{Path: HelperDir + "/db_restore", Mode: "0755", Body: dbRestoreScript},
+		{Path: HelperDir + "/db_backups_list", Mode: "0755", Body: dbBackupsListScript},
 	}
 }
 
@@ -84,6 +92,13 @@ aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/compose_logs
 aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/php_fpm_pool_write
 aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/php_fpm_pool_remove
 aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/nginx_write_php_vhost
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/mysql_db_create
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/mysql_db_drop
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/postgres_db_create
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/postgres_db_drop
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/db_backup
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/db_restore
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/db_backups_list
 Defaults!/usr/local/lib/aegis/* !requiretty
 `
 
@@ -113,6 +128,12 @@ var BootstrapAptPackages = []string{
 	"composer",
 	"nodejs",
 	"npm",
+	// Phase 5: database engines + client tools needed for backups.
+	"mariadb-server",
+	"mariadb-client",
+	"postgresql",
+	"postgresql-client",
+	"gzip",
 }
 
 const siteUseraddScript = `#!/bin/sh
@@ -778,4 +799,185 @@ EOF
 ln -sf "$vhost" "$enabled"
 nginx -t
 systemctl reload nginx
+`
+
+const mysqlDBCreateScript = `#!/bin/sh
+# Aegis helper: CREATE DATABASE + CREATE USER + GRANT ALL.
+# Idempotent in the "user/db already exist" sense — re-grants but does
+# not change an existing password.
+# Args: <site_id> <db_name> <db_user> <db_password>
+set -eu
+
+site_id="${1:-}"
+db_name="${2:-}"
+db_user="${3:-}"
+db_pass="${4:-}"
+
+case "$site_id" in ''|*[!0-9]*) echo "site_id must be numeric" >&2; exit 2 ;; esac
+case "$db_name" in *[!a-zA-Z0-9_]*) echo "db_name invalid chars" >&2; exit 2 ;; esac
+case "$db_user" in *[!a-zA-Z0-9_]*) echo "db_user invalid chars" >&2; exit 2 ;; esac
+if [ -z "$db_pass" ]; then echo "db_pass required" >&2; exit 2; fi
+
+# Ubuntu's mariadb-server enables socket-auth for the system root user
+# by default — no password needed at the CLI when invoked via sudo.
+# Escape the password for the SQL literal (single-quote escape).
+esc_pass=$(printf '%s' "$db_pass" | sed "s/'/''/g")
+
+mariadb --batch --skip-column-names <<EOF
+CREATE DATABASE IF NOT EXISTS $db_name CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS '$db_user'@'localhost' IDENTIFIED BY '$esc_pass';
+GRANT ALL PRIVILEGES ON $db_name.* TO '$db_user'@'localhost';
+FLUSH PRIVILEGES;
+EOF
+`
+
+const mysqlDBDropScript = `#!/bin/sh
+# Aegis helper: DROP DATABASE + DROP USER. Best effort.
+# Args: <db_name> <db_user>
+set -eu
+
+db_name="${1:-}"
+db_user="${2:-}"
+case "$db_name" in ''|*[!a-zA-Z0-9_]*) exit 2 ;; esac
+case "$db_user" in ''|*[!a-zA-Z0-9_]*) exit 2 ;; esac
+
+mariadb --batch --skip-column-names <<EOF
+DROP DATABASE IF EXISTS $db_name;
+DROP USER IF EXISTS '$db_user'@'localhost';
+FLUSH PRIVILEGES;
+EOF
+`
+
+const postgresDBCreateScript = `#!/bin/sh
+# Aegis helper: CREATE DATABASE + CREATE ROLE on Postgres. Idempotent.
+# Args: <db_name> <db_user> <db_password>
+set -eu
+
+db_name="${1:-}"
+db_user="${2:-}"
+db_pass="${3:-}"
+case "$db_name" in ''|*[!a-zA-Z0-9_]*) exit 2 ;; esac
+case "$db_user" in ''|*[!a-zA-Z0-9_]*) exit 2 ;; esac
+if [ -z "$db_pass" ]; then echo "db_pass required" >&2; exit 2; fi
+
+esc_pass=$(printf '%s' "$db_pass" | sed "s/'/''/g")
+
+# Postgres on Ubuntu uses peer auth for the local postgres user;
+# 'sudo -u postgres psql' is the unprivileged-from-aegis entry point.
+sudo -u postgres psql -v ON_ERROR_STOP=1 <<EOF
+DO \$\$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '$db_user') THEN
+    CREATE ROLE "$db_user" LOGIN PASSWORD '$esc_pass';
+  ELSE
+    ALTER ROLE "$db_user" WITH LOGIN PASSWORD '$esc_pass';
+  END IF;
+END
+\$\$;
+EOF
+
+sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='$db_name'" \
+  | grep -q 1 || \
+  sudo -u postgres createdb -O "$db_user" -E UTF8 "$db_name"
+
+sudo -u postgres psql -v ON_ERROR_STOP=1 -c "GRANT ALL PRIVILEGES ON DATABASE \"$db_name\" TO \"$db_user\";"
+`
+
+const postgresDBDropScript = `#!/bin/sh
+# Aegis helper: DROP DATABASE + DROP ROLE on Postgres. Best effort.
+# Args: <db_name> <db_user>
+set -eu
+
+db_name="${1:-}"
+db_user="${2:-}"
+case "$db_name" in ''|*[!a-zA-Z0-9_]*) exit 2 ;; esac
+case "$db_user" in ''|*[!a-zA-Z0-9_]*) exit 2 ;; esac
+
+sudo -u postgres psql -v ON_ERROR_STOP=0 <<EOF
+DROP DATABASE IF EXISTS "$db_name";
+DROP ROLE IF EXISTS "$db_user";
+EOF
+`
+
+const dbBackupScript = `#!/bin/sh
+# Aegis helper: dump a database to /srv/sites/<id>/backups/<engine>-
+# <name>-<timestamp>.sql.gz, owned by site_<id>.
+# Args: <site_id> <engine> <db_name>
+set -eu
+
+site_id="${1:-}"
+engine="${2:-}"
+db_name="${3:-}"
+case "$site_id" in ''|*[!0-9]*) exit 2 ;; esac
+case "$engine" in mysql|postgres) : ;; *) echo "invalid engine" >&2; exit 2 ;; esac
+case "$db_name" in ''|*[!a-zA-Z0-9_]*) echo "invalid db_name" >&2; exit 2 ;; esac
+
+user="site_$site_id"
+backups_dir="/srv/sites/$site_id/backups"
+ts=$(date -u +%Y%m%dT%H%M%SZ)
+file="$backups_dir/$engine-$db_name-$ts.sql.gz"
+
+install -d -o "$user" -g "$user" -m 0750 "$backups_dir"
+
+# Dump as the engine's superuser; pipe through gzip; chown to site user.
+case "$engine" in
+  mysql)
+    mariadb-dump --single-transaction --routines --triggers --events \
+      "$db_name" | gzip -9 > "$file"
+    ;;
+  postgres)
+    sudo -u postgres pg_dump --no-owner --no-privileges "$db_name" \
+      | gzip -9 > "$file"
+    ;;
+esac
+
+chown "$user:$user" "$file"
+chmod 0640 "$file"
+echo "$file"
+`
+
+const dbRestoreScript = `#!/bin/sh
+# Aegis helper: restore a previously-taken backup back into the DB.
+# Args: <site_id> <engine> <db_name> <basename>
+#   basename = "mysql-foo-20260101T000000Z.sql.gz" (no path)
+set -eu
+
+site_id="${1:-}"
+engine="${2:-}"
+db_name="${3:-}"
+basename="${4:-}"
+
+case "$site_id" in ''|*[!0-9]*) exit 2 ;; esac
+case "$engine" in mysql|postgres) : ;; *) echo "invalid engine" >&2; exit 2 ;; esac
+case "$db_name" in ''|*[!a-zA-Z0-9_]*) echo "invalid db_name" >&2; exit 2 ;; esac
+case "$basename" in
+  *[!a-zA-Z0-9._-]*) echo "basename has invalid chars" >&2; exit 2 ;;
+  ''|*/* ) echo "basename must not contain /" >&2; exit 2 ;;
+esac
+
+file="/srv/sites/$site_id/backups/$basename"
+if [ ! -r "$file" ]; then
+  echo "backup file not readable: $file" >&2; exit 2
+fi
+
+case "$engine" in
+  mysql)    gunzip -c "$file" | mariadb "$db_name" ;;
+  postgres) gunzip -c "$file" | sudo -u postgres psql "$db_name" ;;
+esac
+`
+
+const dbBackupsListScript = `#!/bin/sh
+# Aegis helper: emit one TSV line per backup file:
+#   <basename>\t<size_bytes>\t<unix_mtime>
+# Args: <site_id>
+set -eu
+
+site_id="${1:-}"
+case "$site_id" in ''|*[!0-9]*) exit 2 ;; esac
+
+dir="/srv/sites/$site_id/backups"
+[ -d "$dir" ] || exit 0
+
+find "$dir" -maxdepth 1 -type f -name '*.sql.gz' \
+  -printf '%f\t%s\t%T@\n' | sort -r
 `

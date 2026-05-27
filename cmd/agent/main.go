@@ -76,6 +76,13 @@ func run() error {
 	handler.Register(protocol.MethodHostPhpFpmPoolWrite, hostMgr.HandlePhpFpmPoolWrite)
 	handler.Register(protocol.MethodHostPhpFpmPoolRemove, hostMgr.HandlePhpFpmPoolRemove)
 	handler.Register(protocol.MethodHostNginxApplyPhpVhost, hostMgr.HandleNginxApplyPhpVhost)
+	handler.Register(protocol.MethodHostMysqlDBCreate, hostMgr.HandleDBCreate)
+	handler.Register(protocol.MethodHostMysqlDBDrop, hostMgr.HandleDBDrop)
+	handler.Register(protocol.MethodHostPostgresDBCreate, hostMgr.HandleDBCreate)
+	handler.Register(protocol.MethodHostPostgresDBDrop, hostMgr.HandleDBDrop)
+	handler.Register(protocol.MethodHostDBBackup, hostMgr.HandleDBBackup)
+	handler.Register(protocol.MethodHostDBRestore, hostMgr.HandleDBRestore)
+	handler.Register(protocol.MethodHostDBBackupsList, hostMgr.HandleDBBackupsList)
 
 	d := dialer.New(cfg.ControllerURL, tlsCfg, handler, logger)
 

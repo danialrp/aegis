@@ -46,6 +46,7 @@ func Mount(r chi.Router, d MountDeps) {
 	sslH := NewSSLHandler(d.Queries, d.Audit, d.RiverClient, d.LetsEncryptEmail, d.Logger)
 	daemonsH := NewDaemonsHandler(d.Queries, d.Audit, d.Hub, d.Logger)
 	dockerH := NewDockerHandler(d.Queries, d.Audit, d.Hub, d.Logger)
+	databasesH := NewDatabasesHandler(d.Queries, d.Audit, d.Hub, d.Logger)
 
 	r.Route("/v1", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
@@ -105,6 +106,14 @@ func Mount(r chi.Router, d MountDeps) {
 			r.Post("/sites/{id}/compose/action", dockerH.Action)
 			r.Get("/sites/{id}/containers", dockerH.ListContainers)
 			r.Get("/sites/{id}/containers/{service}/logs", dockerH.ContainerLogs)
+
+			// Databases — Phase 5.
+			r.Get("/sites/{id}/databases", databasesH.List)
+			r.Post("/sites/{id}/databases", databasesH.Create)
+			r.Delete("/sites/{id}/databases/{db_id}", databasesH.Delete)
+			r.Post("/sites/{id}/databases/{db_id}/backup", databasesH.Backup)
+			r.Get("/sites/{id}/databases/{db_id}/backups", databasesH.ListBackups)
+			r.Post("/sites/{id}/databases/{db_id}/restore", databasesH.Restore)
 		})
 	})
 }

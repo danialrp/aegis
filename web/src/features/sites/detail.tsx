@@ -8,6 +8,7 @@ import { AdapterHint } from './adapter-hint'
 import { ComposeEditor } from './compose-editor'
 import { ContainersPanel } from './containers-panel'
 import { DaemonsPanel } from './daemons-panel'
+import { DatabasesPanel } from './databases-panel'
 import { DeployScriptEditor } from './deploy-script-editor'
 import { DeploysPanel } from './deploys-panel'
 import { SSLPanel } from './ssl-panel'
@@ -111,6 +112,8 @@ export function SiteDetail({ id }: { id: number }) {
             <DeploysPanel siteID={data.id} />
 
             <DaemonsPanel siteID={data.id} />
+
+            <DatabasesPanel siteID={data.id} />
 
             <div className='flex justify-end'>
               <Button

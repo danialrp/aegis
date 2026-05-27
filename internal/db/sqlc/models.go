@@ -104,6 +104,20 @@ type SiteDaemon struct {
 	UpdatedAt    pgtype.Timestamptz
 }
 
+type SiteDatabase struct {
+	ID           int64
+	SiteID       int64
+	Engine       string
+	Name         string
+	Username     string
+	Password     string
+	Status       string
+	LastError    pgtype.Text
+	LastBackupAt pgtype.Timestamptz
+	CreatedAt    pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
+}
+
 type SiteDeployScript struct {
 	SiteID    int64
 	Body      string

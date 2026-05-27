@@ -21,6 +21,7 @@ type Querier interface {
 	CreateSite(ctx context.Context, arg CreateSiteParams) (Site, error)
 	CreateSiteCert(ctx context.Context, arg CreateSiteCertParams) (SiteCert, error)
 	CreateSiteDaemon(ctx context.Context, arg CreateSiteDaemonParams) (SiteDaemon, error)
+	CreateSiteDatabase(ctx context.Context, arg CreateSiteDatabaseParams) (SiteDatabase, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteExpiredSessions(ctx context.Context) error
 	DeleteServer(ctx context.Context, id int64) error
@@ -29,6 +30,7 @@ type Querier interface {
 	DeleteSite(ctx context.Context, id int64) error
 	DeleteSiteCert(ctx context.Context, id int64) error
 	DeleteSiteDaemon(ctx context.Context, id int64) error
+	DeleteSiteDatabase(ctx context.Context, id int64) error
 	DeleteUser(ctx context.Context, id int64) error
 	GetDeploy(ctx context.Context, id int64) (Deploy, error)
 	GetDeployScript(ctx context.Context, siteID int64) (SiteDeployScript, error)
@@ -39,6 +41,7 @@ type Querier interface {
 	GetSiteCertByDomain(ctx context.Context, arg GetSiteCertByDomainParams) (SiteCert, error)
 	GetSiteCompose(ctx context.Context, siteID int64) (SiteCompose, error)
 	GetSiteDaemon(ctx context.Context, id int64) (SiteDaemon, error)
+	GetSiteDatabase(ctx context.Context, id int64) (SiteDatabase, error)
 	GetSiteWebhookSecret(ctx context.Context, id int64) (pgtype.Text, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id int64) (User, error)
@@ -51,6 +54,7 @@ type Querier interface {
 	ListServers(ctx context.Context) ([]Server, error)
 	ListSiteCertsForSite(ctx context.Context, siteID int64) ([]SiteCert, error)
 	ListSiteDaemonsForSite(ctx context.Context, siteID int64) ([]SiteDaemon, error)
+	ListSiteDatabasesForSite(ctx context.Context, siteID int64) ([]SiteDatabase, error)
 	ListSites(ctx context.Context) ([]Site, error)
 	ListSitesByServer(ctx context.Context, serverID int64) ([]Site, error)
 	ListUsers(ctx context.Context) ([]User, error)
@@ -63,6 +67,7 @@ type Querier interface {
 	SetSiteCertError(ctx context.Context, arg SetSiteCertErrorParams) error
 	SetSiteCertIssued(ctx context.Context, arg SetSiteCertIssuedParams) error
 	SetSiteCertStatus(ctx context.Context, arg SetSiteCertStatusParams) error
+	SetSiteDatabaseStatus(ctx context.Context, arg SetSiteDatabaseStatusParams) error
 	SetSiteProvisionError(ctx context.Context, arg SetSiteProvisionErrorParams) error
 	SetSiteProxyPort(ctx context.Context, arg SetSiteProxyPortParams) error
 	SetSiteStatus(ctx context.Context, arg SetSiteStatusParams) error
@@ -71,6 +76,7 @@ type Querier interface {
 	SetUserEnabled(ctx context.Context, arg SetUserEnabledParams) error
 	SetUserMFASecret(ctx context.Context, arg SetUserMFASecretParams) error
 	TouchServerAgent(ctx context.Context, id int64) error
+	TouchSiteDatabaseBackup(ctx context.Context, id int64) error
 	UpdateSiteDaemonStatus(ctx context.Context, arg UpdateSiteDaemonStatusParams) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	UpsertDeployScript(ctx context.Context, arg UpsertDeployScriptParams) (SiteDeployScript, error)

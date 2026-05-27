@@ -111,7 +111,61 @@ const (
 	MethodHostPhpFpmPoolWrite    = "host.php_fpm_pool_write"
 	MethodHostPhpFpmPoolRemove   = "host.php_fpm_pool_remove"
 	MethodHostNginxApplyPhpVhost = "host.nginx_apply_php_vhost"
+
+	// Phase 5 — database engines + backups.
+	MethodHostMysqlDBCreate    = "host.mysql_db_create"
+	MethodHostMysqlDBDrop      = "host.mysql_db_drop"
+	MethodHostPostgresDBCreate = "host.postgres_db_create"
+	MethodHostPostgresDBDrop   = "host.postgres_db_drop"
+	MethodHostDBBackup         = "host.db_backup"
+	MethodHostDBRestore        = "host.db_restore"
+	MethodHostDBBackupsList    = "host.db_backups_list"
 )
+
+// DBCreateParams covers both mysql_db_create + postgres_db_create.
+// SiteID is only consumed by the mysql helper (its first argv is
+// site_id; postgres's helper ignores it).
+type DBCreateParams struct {
+	SiteID   int64  `json:"site_id"`
+	Engine   string `json:"engine"` // "mysql" | "postgres"
+	Name     string `json:"name"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+// DBDropParams covers both mysql_db_drop + postgres_db_drop.
+type DBDropParams struct {
+	Engine   string `json:"engine"`
+	Name     string `json:"name"`
+	Username string `json:"username"`
+}
+
+// DBBackupParams kicks off a dump.
+type DBBackupParams struct {
+	SiteID int64  `json:"site_id"`
+	Engine string `json:"engine"`
+	Name   string `json:"name"`
+}
+
+// DBBackupResult carries the absolute path of the file that was written.
+type DBBackupResult struct {
+	Path string `json:"path"`
+}
+
+// DBRestoreParams names a backup file (basename, no path) inside the
+// site's backups directory to restore.
+type DBRestoreParams struct {
+	SiteID   int64  `json:"site_id"`
+	Engine   string `json:"engine"`
+	Name     string `json:"name"`
+	Basename string `json:"basename"`
+}
+
+// DBBackupsListResult is the raw TSV output of db_backups_list. The
+// controller parses one row per line.
+type DBBackupsListResult struct {
+	Raw string `json:"raw"`
+}
 
 // NginxApplyPhpVhostParams configures a PHP fastcgi vhost. The pool
 // socket path is derived from site_id on the agent side.
