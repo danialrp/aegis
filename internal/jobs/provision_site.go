@@ -96,41 +96,71 @@ func (w *ProvisionSiteWorker) run(ctx context.Context, site sqlc.Site, log *slog
 		}
 	}
 
-	// nginx vhost. Two variants today:
-	//   static — root-served file site (Phase 1.3)
-	//   docker — reverse-proxy to 127.0.0.1:proxy_port (Phase 3)
+	// Adapter dispatch: pick the right nginx vhost + per-type host setup.
 	switch site.SiteType {
 	case "static":
-		log.Info("step", "name", "apply static nginx vhost")
-		callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
-		_, err := conn.Request(callCtx, protocol.MethodHostNginxApplyVhost, protocol.NginxApplyVhostParams{
-			SiteID:     site.ID,
-			Domain:     site.Domain,
-			WorkingDir: site.WorkingDir,
-		})
-		cancel()
-		if err != nil {
-			return fmt.Errorf("nginx apply: %w", err)
-		}
+		return w.applyStaticVhost(ctx, conn, site, log)
 	case "docker":
-		if !site.ProxyPort.Valid {
-			// No port chosen yet — operator will set one and re-provision.
-			log.Info("skipping nginx vhost: proxy_port unset")
-			return nil
-		}
-		log.Info("step", "name", "apply docker proxy vhost", "port", site.ProxyPort.Int32)
-		callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
-		_, err := conn.Request(callCtx, protocol.MethodHostNginxApplyProxyVhost, protocol.NginxApplyProxyVhostParams{
-			SiteID:    site.ID,
-			Domain:    site.Domain,
-			ProxyPort: int(site.ProxyPort.Int32),
-		})
-		cancel()
-		if err != nil {
-			return fmt.Errorf("nginx apply (proxy): %w", err)
-		}
+		return w.applyDockerVhost(ctx, conn, site, log)
+	case "nextjs":
+		// Reuses the docker proxy vhost: nginx → 127.0.0.1:proxy_port.
+		// The Node process is operator-managed (supervisor daemon).
+		return w.applyDockerVhost(ctx, conn, site, log)
+	case "php", "laravel", "wordpress":
+		return w.applyPhpStack(ctx, conn, site, log)
 	}
 	return nil
+}
+
+func (w *ProvisionSiteWorker) applyStaticVhost(ctx context.Context, conn agentRequester, site sqlc.Site, log *slog.Logger) error {
+	log.Info("step", "name", "apply static nginx vhost")
+	callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	_, err := conn.Request(callCtx, protocol.MethodHostNginxApplyVhost, protocol.NginxApplyVhostParams{
+		SiteID: site.ID, Domain: site.Domain, WorkingDir: site.WorkingDir,
+	})
+	return err
+}
+
+func (w *ProvisionSiteWorker) applyDockerVhost(ctx context.Context, conn agentRequester, site sqlc.Site, log *slog.Logger) error {
+	if !site.ProxyPort.Valid {
+		log.Info("skipping nginx vhost: proxy_port unset")
+		return nil
+	}
+	log.Info("step", "name", "apply proxy vhost", "port", site.ProxyPort.Int32)
+	callCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	_, err := conn.Request(callCtx, protocol.MethodHostNginxApplyProxyVhost, protocol.NginxApplyProxyVhostParams{
+		SiteID: site.ID, Domain: site.Domain, ProxyPort: int(site.ProxyPort.Int32),
+	})
+	return err
+}
+
+func (w *ProvisionSiteWorker) applyPhpStack(ctx context.Context, conn agentRequester, site sqlc.Site, log *slog.Logger) error {
+	// 1) PHP-FPM pool for this site.
+	log.Info("step", "name", "write php-fpm pool")
+	{
+		cctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+		_, err := conn.Request(cctx, protocol.MethodHostPhpFpmPoolWrite, protocol.SiteIDParams{SiteID: site.ID})
+		cancel()
+		if err != nil {
+			return fmt.Errorf("php_fpm_pool_write: %w", err)
+		}
+	}
+	// 2) PHP nginx vhost.
+	log.Info("step", "name", "apply php vhost")
+	cctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	_, err := conn.Request(cctx, protocol.MethodHostNginxApplyPhpVhost, protocol.NginxApplyPhpVhostParams{
+		SiteID: site.ID, Domain: site.Domain, WorkingDir: site.WorkingDir,
+	})
+	return err
+}
+
+// agentRequester is the small interface ProvisionSiteWorker uses to
+// dispatch RPCs. agentbus.Conn satisfies it.
+type agentRequester interface {
+	Request(ctx context.Context, method string, params any) (*protocol.Message, error)
 }
 
 func (w *ProvisionSiteWorker) recordFailure(ctx context.Context, siteID int64, cause error, log *slog.Logger) {

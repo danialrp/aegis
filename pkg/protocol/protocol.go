@@ -106,7 +106,20 @@ const (
 	MethodHostComposeAction        = "host.compose_action"
 	MethodHostComposePs            = "host.compose_ps"
 	MethodHostComposeLogs          = "host.compose_logs"
+
+	// Phase 4 — PHP-FPM pool + PHP fastcgi vhost.
+	MethodHostPhpFpmPoolWrite    = "host.php_fpm_pool_write"
+	MethodHostPhpFpmPoolRemove   = "host.php_fpm_pool_remove"
+	MethodHostNginxApplyPhpVhost = "host.nginx_apply_php_vhost"
 )
+
+// NginxApplyPhpVhostParams configures a PHP fastcgi vhost. The pool
+// socket path is derived from site_id on the agent side.
+type NginxApplyPhpVhostParams struct {
+	SiteID     int64  `json:"site_id"`
+	Domain     string `json:"domain"`
+	WorkingDir string `json:"working_dir"`
+}
 
 // NginxApplyProxyVhostParams configures a reverse-proxy vhost. nginx
 // listens on 80 for Domain and forwards to 127.0.0.1:ProxyPort.

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { deleteSite, getSite } from './api'
+import { AdapterHint } from './adapter-hint'
 import { ComposeEditor } from './compose-editor'
 import { ContainersPanel } from './containers-panel'
 import { DaemonsPanel } from './daemons-panel'
@@ -90,6 +91,11 @@ export function SiteDetail({ id }: { id: number }) {
                 value={new Date(data.created_at).toLocaleString()}
               />
             </dl>
+
+            <AdapterHint
+              siteType={data.site_type}
+              proxyPort={data.proxy_port}
+            />
 
             <SSLPanel siteID={data.id} />
 

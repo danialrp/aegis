@@ -76,11 +76,15 @@ func (h *DeploysHandler) GetScript(w http.ResponseWriter, r *http.Request) {
 	row, err := h.queries.GetDeployScript(r.Context(), siteID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// Auto-default for an unsaved site so the editor shows a
-			// useful starting point.
+			// Auto-default for an unsaved site, tailored to the site
+			// type so the editor shows a useful starting point.
+			body := defaultDeployScript
+			if site, sErr := h.queries.GetSite(r.Context(), siteID); sErr == nil {
+				body = defaultDeployScriptFor(site.SiteType)
+			}
 			writeJSON(w, http.StatusOK, deployScriptResponse{
 				SiteID: siteID,
-				Body:   defaultDeployScript,
+				Body:   body,
 			})
 			return
 		}
@@ -90,6 +94,100 @@ func (h *DeploysHandler) GetScript(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, deployScriptResponseFromRow(row))
 }
+
+// defaultDeployScriptFor returns a starter script appropriate for the
+// site type. The operator can rewrite freely; this is just a
+// useful-on-first-render default.
+func defaultDeployScriptFor(siteType string) string {
+	switch siteType {
+	case "laravel":
+		return laravelDefaultDeployScript
+	case "wordpress":
+		return wordpressDefaultDeployScript
+	case "nextjs":
+		return nextjsDefaultDeployScript
+	case "docker":
+		return dockerDefaultDeployScript
+	case "php":
+		return phpGenericDefaultDeployScript
+	default:
+		return defaultDeployScript
+	}
+}
+
+const laravelDefaultDeployScript = `#!/usr/bin/env bash
+# Aegis Laravel deploy script — runs as the site's Linux user with
+# cwd at the site's working directory.
+set -euo pipefail
+
+[ -d ".git" ] && git pull --ff-only origin main || true
+
+composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+
+php artisan migrate --force
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+
+echo "Done."
+`
+
+const wordpressDefaultDeployScript = `#!/usr/bin/env bash
+# Aegis WordPress deploy script. First run downloads core + writes a
+# wp-config.php skeleton; subsequent runs pull + (optionally) wp-cli update.
+set -euo pipefail
+
+if [ ! -f "wp-config.php" ]; then
+  echo "==> Downloading WordPress core"
+  curl -sSL https://wordpress.org/latest.tar.gz | tar -xz --strip-components=1
+  cp wp-config-sample.php wp-config.php
+  echo "==> Edit wp-config.php with your DB creds, then re-run."
+  exit 0
+fi
+
+[ -d ".git" ] && git pull --ff-only origin main || true
+command -v wp >/dev/null 2>&1 && wp core update || true
+
+echo "Done."
+`
+
+const nextjsDefaultDeployScript = `#!/usr/bin/env bash
+# Aegis Next.js deploy script. Builds the production bundle; the Node
+# process itself should run as an Aegis-managed supervisor daemon —
+# add one via the Daemons panel pointing at:
+#   node node_modules/next/dist/bin/next start -p <proxy_port>
+set -euo pipefail
+
+[ -d ".git" ] && git pull --ff-only origin main || true
+
+npm ci
+npm run build
+
+echo "Done — restart the next-server daemon to pick up the new build."
+`
+
+const dockerDefaultDeployScript = `#!/usr/bin/env bash
+# Aegis docker deploy script.
+set -euo pipefail
+
+[ -d ".git" ] && git pull --ff-only origin main || true
+
+# Replace <id> with this site's id (visible in the URL).
+docker compose pull || true
+docker compose up -d --build --remove-orphans
+
+echo "Done."
+`
+
+const phpGenericDefaultDeployScript = `#!/usr/bin/env bash
+# Aegis generic-PHP deploy script.
+set -euo pipefail
+
+[ -d ".git" ] && git pull --ff-only origin main || true
+[ -f "composer.json" ] && composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+
+echo "Done."
+`
 
 // PutScript handles PUT /v1/sites/{id}/deploy-script.
 func (h *DeploysHandler) PutScript(w http.ResponseWriter, r *http.Request) {

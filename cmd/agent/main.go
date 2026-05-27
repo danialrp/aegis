@@ -73,6 +73,9 @@ func run() error {
 	handler.Register(protocol.MethodHostComposeAction, hostMgr.HandleComposeAction)
 	handler.Register(protocol.MethodHostComposePs, hostMgr.HandleComposePs)
 	handler.Register(protocol.MethodHostComposeLogs, hostMgr.HandleComposeLogs)
+	handler.Register(protocol.MethodHostPhpFpmPoolWrite, hostMgr.HandlePhpFpmPoolWrite)
+	handler.Register(protocol.MethodHostPhpFpmPoolRemove, hostMgr.HandlePhpFpmPoolRemove)
+	handler.Register(protocol.MethodHostNginxApplyPhpVhost, hostMgr.HandleNginxApplyPhpVhost)
 
 	d := dialer.New(cfg.ControllerURL, tlsCfg, handler, logger)
 

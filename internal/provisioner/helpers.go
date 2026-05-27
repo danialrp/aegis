@@ -51,6 +51,10 @@ func Helpers() []HelperFile {
 		{Path: HelperDir + "/compose_action", Mode: "0755", Body: composeActionScript},
 		{Path: HelperDir + "/compose_ps", Mode: "0755", Body: composePsScript},
 		{Path: HelperDir + "/compose_logs", Mode: "0755", Body: composeLogsScript},
+		// Phase 4 — PHP-FPM pool + PHP nginx vhost.
+		{Path: HelperDir + "/php_fpm_pool_write", Mode: "0755", Body: phpFpmPoolWriteScript},
+		{Path: HelperDir + "/php_fpm_pool_remove", Mode: "0755", Body: phpFpmPoolRemoveScript},
+		{Path: HelperDir + "/nginx_write_php_vhost", Mode: "0755", Body: nginxWritePhpVhostScript},
 	}
 }
 
@@ -77,6 +81,9 @@ aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/compose_write
 aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/compose_action
 aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/compose_ps
 aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/compose_logs
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/php_fpm_pool_write
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/php_fpm_pool_remove
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/nginx_write_php_vhost
 Defaults!/usr/local/lib/aegis/* !requiretty
 `
 
@@ -92,6 +99,20 @@ var BootstrapAptPackages = []string{
 	// Ubuntu 22.04+/Debian 12+ ship docker.io + docker-compose-v2.
 	"docker.io",
 	"docker-compose-v2",
+	// Phase 4: PHP-FPM + common extensions + composer + Node 20.
+	// php-fpm pulls in the default php-fpm package which on Ubuntu
+	// 22.04+ is PHP 8.1+.
+	"php-fpm",
+	"php-cli",
+	"php-curl",
+	"php-mbstring",
+	"php-xml",
+	"php-zip",
+	"php-mysql",
+	"php-gd",
+	"composer",
+	"nodejs",
+	"npm",
 }
 
 const siteUseraddScript = `#!/bin/sh
@@ -620,4 +641,141 @@ if [ -z "$service" ]; then
 else
   exec docker compose -p "$project" logs --tail "$lines" --timestamps -- "$service"
 fi
+`
+
+const phpFpmPoolWriteScript = `#!/bin/sh
+# Aegis helper: write /etc/php/<active>/fpm/pool.d/aegis-site-<id>.conf
+# and restart php-fpm. One pool per site, runs as site_<id>, listens
+# on a per-site unix socket that nginx fastcgi_pass-es to.
+# Args: <site_id>
+set -eu
+
+site_id="${1:-}"
+case "$site_id" in ''|*[!0-9]*) echo "site_id must be numeric" >&2; exit 2 ;; esac
+
+user="site_$site_id"
+if ! id -u "$user" >/dev/null 2>&1; then
+  echo "user $user does not exist" >&2; exit 2
+fi
+
+# Find the active PHP version by looking for the fpm config dir. There
+# is exactly one such directory on a standard Ubuntu install (PHP-FPM
+# is shipped per major version: php8.1-fpm, php8.2-fpm, etc.).
+php_ver=""
+for dir in /etc/php/*/fpm/pool.d; do
+  [ -d "$dir" ] || continue
+  php_ver=$(echo "$dir" | awk -F/ '{print $4}')
+  break
+done
+if [ -z "$php_ver" ]; then
+  echo "no /etc/php/*/fpm/pool.d directory found" >&2; exit 2
+fi
+
+pool="/etc/php/$php_ver/fpm/pool.d/aegis-site-$site_id.conf"
+socket="/run/php/aegis-site-$site_id.sock"
+
+cat >"$pool" <<EOF
+; Aegis-managed PHP-FPM pool for site $site_id.
+[aegis-site-$site_id]
+user = $user
+group = $user
+listen = $socket
+listen.owner = $user
+listen.group = www-data
+listen.mode = 0660
+
+pm = ondemand
+pm.max_children = 5
+pm.process_idle_timeout = 60s
+pm.max_requests = 500
+
+php_admin_value[error_log] = /var/log/aegis-site-$site_id-php.log
+php_admin_flag[log_errors] = on
+EOF
+
+systemctl reload "php$php_ver-fpm" || systemctl restart "php$php_ver-fpm"
+`
+
+const phpFpmPoolRemoveScript = `#!/bin/sh
+# Aegis helper: remove a site's PHP-FPM pool. Best effort.
+# Args: <site_id>
+set -eu
+
+site_id="${1:-}"
+case "$site_id" in ''|*[!0-9]*) exit 2 ;; esac
+
+for f in /etc/php/*/fpm/pool.d/aegis-site-"$site_id".conf; do
+  [ -f "$f" ] || continue
+  rm -f "$f"
+  php_ver=$(echo "$f" | awk -F/ '{print $4}')
+  systemctl reload "php$php_ver-fpm" 2>/dev/null || true
+done
+`
+
+const nginxWritePhpVhostScript = `#!/bin/sh
+# Aegis helper: write nginx vhost that fastcgi-passes .php requests to
+# the site's PHP-FPM pool's unix socket.
+# Args: <site_id> <domain> <working_dir>
+set -eu
+
+site_id="${1:-}"
+domain="${2:-}"
+working_dir="${3:-}"
+
+case "$site_id" in ''|*[!0-9]*) echo "site_id must be numeric" >&2; exit 2 ;; esac
+case "$domain" in
+  '') echo "domain required" >&2; exit 2 ;;
+  *[!a-z0-9.-]*) echo "domain has invalid chars" >&2; exit 2 ;;
+  .*|*..*|*-.*|*.-*) echo "domain is malformed" >&2; exit 2 ;;
+esac
+
+expected="/srv/sites/$site_id"
+case "$working_dir" in
+  "$expected") : ;;
+  *) echo "working_dir must equal $expected" >&2; exit 2 ;;
+esac
+
+socket="/run/php/aegis-site-$site_id.sock"
+vhost="/etc/nginx/sites-available/aegis-site-$site_id.conf"
+enabled="/etc/nginx/sites-enabled/aegis-site-$site_id.conf"
+
+cat >"$vhost" <<EOF
+# Aegis-managed PHP vhost for site $site_id — do not edit by hand.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name $domain;
+
+    root $working_dir/public_html;
+    index index.php index.html;
+
+    location / {
+        try_files \$uri \$uri/ /index.php?\$query_string;
+    }
+
+    location ~ \.php\$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:$socket;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+    }
+
+    # Block hidden files / common sensitive paths.
+    location ~ /\.(ht|env) {
+        deny all;
+    }
+
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    access_log /var/log/nginx/aegis-site-$site_id-access.log;
+    error_log /var/log/nginx/aegis-site-$site_id-error.log;
+
+    client_max_body_size 50M;
+}
+EOF
+
+ln -sf "$vhost" "$enabled"
+nginx -t
+systemctl reload nginx
 `

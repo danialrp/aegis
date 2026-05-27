@@ -2,7 +2,13 @@
 // internal/api/v1/sites.go.
 import { apiFetch } from '@/lib/api'
 
-export type SiteType = 'static' | 'php' | 'docker'
+export type SiteType =
+  | 'static'
+  | 'php'
+  | 'laravel'
+  | 'wordpress'
+  | 'nextjs'
+  | 'docker'
 export type SiteStatus = 'pending' | 'provisioning' | 'ready' | 'error'
 
 export interface Site {

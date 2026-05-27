@@ -43,6 +43,8 @@ export function NewSiteForm() {
     },
   })
 
+  const needsProxyPort = siteType === 'docker' || siteType === 'nextjs'
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const sid = Number(serverID)
@@ -52,7 +54,7 @@ export function NewSiteForm() {
       name: name.trim(),
       domain: domain.trim(),
       site_type: siteType,
-      proxy_port: siteType === 'docker' ? Number(proxyPort) || 0 : undefined,
+      proxy_port: needsProxyPort ? Number(proxyPort) || 0 : undefined,
     })
   }
 
@@ -135,15 +137,16 @@ export function NewSiteForm() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value='static'>Static (HTML / SPA)</SelectItem>
+                  <SelectItem value='laravel'>Laravel (PHP-FPM)</SelectItem>
+                  <SelectItem value='wordpress'>WordPress (PHP-FPM)</SelectItem>
+                  <SelectItem value='php'>PHP — generic</SelectItem>
+                  <SelectItem value='nextjs'>Next.js (Node)</SelectItem>
                   <SelectItem value='docker'>Docker (compose)</SelectItem>
-                  <SelectItem value='php' disabled>
-                    PHP — Phase 4
-                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {siteType === 'docker' && (
+            {needsProxyPort && (
               <div className='grid gap-2'>
                 <Label htmlFor='port'>Upstream proxy port</Label>
                 <Input
@@ -156,7 +159,9 @@ export function NewSiteForm() {
                 <p className='text-muted-foreground text-xs'>
                   nginx will proxy {domain || 'the domain'} →
                   <span className='font-mono'> 127.0.0.1:{proxyPort || '<port>'}</span>.
-                  Bind one of your compose services to this port.
+                  Bind one of your{' '}
+                  {siteType === 'docker' ? 'compose services' : 'Next.js server'} to this
+                  port.
                 </p>
               </div>
             )}

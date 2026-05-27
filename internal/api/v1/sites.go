@@ -62,13 +62,22 @@ type siteResponse struct {
 }
 
 // Valid site types (matches the CHECK constraint on sites.site_type).
-// Only `static` actually has a deploy path in Phase 1 — `php` and
-// `docker` are accepted for forward-compat but their bootstrap logic
-// lands in later phases.
+// Phase 1 covered static; Phase 3 covered docker; Phase 4 adds the
+// PHP family (php/laravel/wordpress) and nextjs.
 var validSiteTypes = map[string]struct{}{
-	"static": {},
-	"php":    {},
+	"static":    {},
+	"php":       {},
+	"laravel":   {},
+	"wordpress": {},
+	"nextjs":    {},
+	"docker":    {},
+}
+
+// siteTypesNeedingProxyPort lists the types that point nginx at a
+// localhost upstream rather than a filesystem root or PHP-FPM socket.
+var siteTypesNeedingProxyPort = map[string]struct{}{
 	"docker": {},
+	"nextjs": {},
 }
 
 // --- handlers ---
@@ -166,8 +175,9 @@ func (h *SitesHandler) Create(w http.ResponseWriter, r *http.Request) {
 		h.logger.WarnContext(r.Context(), "set working_dir", "err", err)
 	}
 
-	// Docker sites carry the upstream port the nginx vhost forwards to.
-	if req.SiteType == "docker" && req.ProxyPort > 0 {
+	// docker + nextjs sites carry the upstream port the nginx vhost
+	// forwards to.
+	if _, needsPort := siteTypesNeedingProxyPort[req.SiteType]; needsPort && req.ProxyPort > 0 {
 		port := pgtype.Int4{Int32: int32(req.ProxyPort), Valid: true} //nolint:gosec // validated 1..65535
 		if err := h.queries.SetSiteProxyPort(r.Context(), sqlc.SetSiteProxyPortParams{
 			ID: row.ID, ProxyPort: port,
@@ -240,9 +250,9 @@ func validateCreateSite(req *createSiteRequest) error {
 	if _, ok := validSiteTypes[req.SiteType]; !ok {
 		return errors.New("invalid_site_type")
 	}
-	if req.SiteType == "docker" {
+	if _, needsPort := siteTypesNeedingProxyPort[req.SiteType]; needsPort {
 		if req.ProxyPort < 1 || req.ProxyPort > 65535 {
-			return errors.New("docker_requires_proxy_port")
+			return errors.New("proxy_port_required")
 		}
 	}
 	return nil
