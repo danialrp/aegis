@@ -24,7 +24,7 @@ const HelperDir = "/usr/local/lib/aegis"
 // Each helper is intentionally small and shell-portable (POSIX sh).
 // Validating inputs here keeps the sudoers entry narrow — the
 // allow-list points only at the helper, not at the underlying
-// `useradd` / `install` / `nginx` binaries with arbitrary args.
+// `useradd` / `install` / `nginx` / `certbot` binaries with arbitrary args.
 func Helpers() []HelperFile {
 	return []HelperFile{
 		// Phase 1.2 — site lifecycle.
@@ -36,6 +36,15 @@ func Helpers() []HelperFile {
 		{Path: HelperDir + "/nginx_remove_vhost", Mode: "0755", Body: nginxRemoveVhostScript},
 		// Phase 1.5 — exec a deploy script as site_<id>.
 		{Path: HelperDir + "/site_run_script", Mode: "0755", Body: siteRunScriptScript},
+		// Phase 2.1 — SSL via Let's Encrypt (certbot --nginx).
+		{Path: HelperDir + "/cert_issue", Mode: "0755", Body: certIssueScript},
+		{Path: HelperDir + "/cert_remove", Mode: "0755", Body: certRemoveScript},
+		{Path: HelperDir + "/cert_status", Mode: "0755", Body: certStatusScript},
+		// Phase 2.4 — supervisor-managed per-site daemons.
+		{Path: HelperDir + "/daemon_write", Mode: "0755", Body: daemonWriteScript},
+		{Path: HelperDir + "/daemon_remove", Mode: "0755", Body: daemonRemoveScript},
+		{Path: HelperDir + "/daemon_action", Mode: "0755", Body: daemonActionScript},
+		{Path: HelperDir + "/daemon_logs", Mode: "0755", Body: daemonLogsScript},
 	}
 }
 
@@ -50,8 +59,25 @@ aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/site_delete
 aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/nginx_write_vhost
 aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/nginx_remove_vhost
 aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/site_run_script
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/cert_issue
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/cert_remove
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/cert_status
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/daemon_write
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/daemon_remove
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/daemon_action
+aegis ALL=(root) NOPASSWD: /usr/local/lib/aegis/daemon_logs
 Defaults!/usr/local/lib/aegis/* !requiretty
 `
+
+// BootstrapAptPackages lists the host packages Aegis depends on. The
+// SSH bootstrap installs them via `apt-get install -y` in one step.
+// Idempotent — apt no-ops if a package is already present.
+var BootstrapAptPackages = []string{
+	"nginx",
+	"certbot",
+	"python3-certbot-nginx",
+	"supervisor",
+}
 
 const siteUseraddScript = `#!/bin/sh
 # Aegis helper: create site_<id> system user. Idempotent.
@@ -244,4 +270,170 @@ fi
 # 2>&1 merges streams so the caller gets a single ordered stdout.
 exec sudo -u "$user" -H $env_arg --set-home -- \
   bash -c "cd '$dir' && exec bash '$script_path' 2>&1"
+`
+
+const certIssueScript = `#!/bin/sh
+# Aegis helper: issue a Let's Encrypt cert via certbot --nginx for the
+# given domain. nginx must already be serving the domain on port 80
+# (the HTTP-01 challenge is over port 80).
+# Args: <domain> <email>
+set -eu
+
+domain="${1:-}"
+email="${2:-}"
+
+case "$domain" in
+  '') echo "domain required" >&2; exit 2 ;;
+  *[!a-z0-9.-]*) echo "domain has invalid chars" >&2; exit 2 ;;
+esac
+case "$email" in
+  '') echo "email required" >&2; exit 2 ;;
+  *[!a-zA-Z0-9.+_@-]*) echo "email has invalid chars" >&2; exit 2 ;;
+esac
+
+# --non-interactive + --agree-tos for unattended use.
+# --redirect rewrites the port-80 vhost to 301 → HTTPS.
+# --no-eff-email skips the EFF newsletter prompt.
+exec certbot --nginx --non-interactive --agree-tos --no-eff-email \
+  --email "$email" --redirect --domain "$domain"
+`
+
+const certRemoveScript = `#!/bin/sh
+# Aegis helper: revoke + delete a Let's Encrypt cert for the given
+# domain. Best effort.
+# Args: <domain>
+set -eu
+
+domain="${1:-}"
+case "$domain" in
+  '') echo "domain required" >&2; exit 2 ;;
+  *[!a-z0-9.-]*) echo "domain has invalid chars" >&2; exit 2 ;;
+esac
+
+certbot delete --non-interactive --cert-name "$domain" 2>/dev/null || true
+`
+
+const certStatusScript = `#!/bin/sh
+# Aegis helper: print certbot's machine-readable cert state. Output is
+# parsed by the agent.
+set -eu
+exec certbot certificates 2>/dev/null
+`
+
+const daemonWriteScript = `#!/bin/sh
+# Aegis helper: write a supervisor program config for a site daemon
+# and reload supervisor. Idempotent.
+# Args: <site_id> <slug> <command> <auto_restart>
+#   <slug> = [a-z0-9-]+, used in the supervisor program name
+#   <auto_restart> = "true" | "false"
+set -eu
+
+site_id="${1:-}"
+slug="${2:-}"
+command_str="${3:-}"
+auto_restart="${4:-}"
+
+case "$site_id" in ''|*[!0-9]*) echo "site_id must be numeric" >&2; exit 2 ;; esac
+case "$slug" in
+  '') echo "slug required" >&2; exit 2 ;;
+  *[!a-z0-9-]*) echo "slug must be [a-z0-9-]+" >&2; exit 2 ;;
+esac
+case "$auto_restart" in
+  true|false) : ;;
+  *) echo "auto_restart must be true|false" >&2; exit 2 ;;
+esac
+if [ -z "$command_str" ]; then
+  echo "command required" >&2; exit 2
+fi
+
+user="site_$site_id"
+dir="/srv/sites/$site_id"
+name="aegis-site-$site_id-$slug"
+conf="/etc/supervisor/conf.d/$name.conf"
+
+if ! id -u "$user" >/dev/null 2>&1; then
+  echo "user $user does not exist" >&2; exit 2
+fi
+
+cat >"$conf" <<EOF
+# Aegis-managed daemon $name — do not edit by hand.
+[program:$name]
+command=$command_str
+directory=$dir
+user=$user
+autostart=true
+autorestart=$auto_restart
+stopasgroup=true
+killasgroup=true
+stdout_logfile=/var/log/supervisor/$name.log
+stderr_logfile=/var/log/supervisor/$name-err.log
+stdout_logfile_maxbytes=10MB
+stdout_logfile_backups=3
+EOF
+
+supervisorctl reread
+supervisorctl update "$name"
+`
+
+const daemonRemoveScript = `#!/bin/sh
+# Aegis helper: stop + remove a supervisor program. Best effort.
+# Args: <site_id> <slug>
+set -eu
+
+site_id="${1:-}"
+slug="${2:-}"
+case "$site_id" in ''|*[!0-9]*) echo "site_id must be numeric" >&2; exit 2 ;; esac
+case "$slug" in '') exit 2 ;; *[!a-z0-9-]*) exit 2 ;; esac
+
+name="aegis-site-$site_id-$slug"
+conf="/etc/supervisor/conf.d/$name.conf"
+
+supervisorctl stop "$name" 2>/dev/null || true
+rm -f "$conf"
+supervisorctl reread
+supervisorctl update
+`
+
+const daemonActionScript = `#!/bin/sh
+# Aegis helper: start / stop / restart a supervisor program.
+# Args: <site_id> <slug> <action>
+set -eu
+
+site_id="${1:-}"
+slug="${2:-}"
+action="${3:-}"
+case "$site_id" in ''|*[!0-9]*) exit 2 ;; esac
+case "$slug" in '') exit 2 ;; *[!a-z0-9-]*) exit 2 ;; esac
+case "$action" in
+  start|stop|restart) : ;;
+  *) echo "action must be start|stop|restart" >&2; exit 2 ;;
+esac
+
+exec supervisorctl "$action" "aegis-site-$site_id-$slug"
+`
+
+const daemonLogsScript = `#!/bin/sh
+# Aegis helper: tail a supervisor program's stdout log.
+# Args: <site_id> <slug> <lines>
+set -eu
+
+site_id="${1:-}"
+slug="${2:-}"
+lines="${3:-200}"
+case "$site_id" in ''|*[!0-9]*) exit 2 ;; esac
+case "$slug" in '') exit 2 ;; *[!a-z0-9-]*) exit 2 ;; esac
+case "$lines" in ''|*[!0-9]*) lines=200 ;; esac
+if [ "$lines" -gt 5000 ]; then lines=5000; fi
+
+name="aegis-site-$site_id-$slug"
+log="/var/log/supervisor/$name.log"
+err="/var/log/supervisor/$name-err.log"
+
+if [ -r "$log" ]; then
+  tail -n "$lines" "$log"
+fi
+if [ -r "$err" ]; then
+  echo "----- stderr -----"
+  tail -n "$lines" "$err"
+fi
 `

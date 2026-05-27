@@ -135,6 +135,12 @@ func run() error {
 		Logger:        logger,
 		DeployTimeout: cfg.DeployTimeout,
 	})
+	river.AddWorker(workers, &jobs.IssueCertWorker{
+		Queries: queries,
+		Audit:   auditRec,
+		Hub:     hub,
+		Logger:  logger,
+	})
 	rt, err := jobs.Setup(pool, logger, workers)
 	if err != nil {
 		return fmt.Errorf("setup river: %w", err)
@@ -165,14 +171,16 @@ func run() error {
 	}
 
 	handler := api.NewRouter(api.Deps{
-		Logger:      logger,
-		Pool:        pool,
-		AuthService: authSvc,
-		JWTSecret:   []byte(cfg.JWTSecret),
-		Queries:     queries,
-		Audit:       auditRec,
-		RiverClient: rt.Client(),
-		SPA:         spaFS,
+		Logger:           logger,
+		Pool:             pool,
+		AuthService:      authSvc,
+		JWTSecret:        []byte(cfg.JWTSecret),
+		Queries:          queries,
+		Audit:            auditRec,
+		RiverClient:      rt.Client(),
+		Hub:              hub,
+		LetsEncryptEmail: cfg.LetsEncryptEmail,
+		SPA:              spaFS,
 	})
 
 	httpSrv := &http.Server{

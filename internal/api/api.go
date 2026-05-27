@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 
+	"github.com/danialrp/aegis/internal/agentbus"
 	"github.com/danialrp/aegis/internal/api/middleware"
 	v1 "github.com/danialrp/aegis/internal/api/v1"
 	"github.com/danialrp/aegis/internal/audit"
@@ -27,13 +28,15 @@ import (
 // Add fields here as new domains come online; do not pull globals into
 // handlers.
 type Deps struct {
-	Logger      *slog.Logger
-	Pool        *pgxpool.Pool
-	AuthService *auth.Service
-	JWTSecret   []byte
-	Queries     *sqlc.Queries
-	Audit       *audit.Recorder
-	RiverClient *river.Client[pgx.Tx]
+	Logger           *slog.Logger
+	Pool             *pgxpool.Pool
+	AuthService      *auth.Service
+	JWTSecret        []byte
+	Queries          *sqlc.Queries
+	Audit            *audit.Recorder
+	RiverClient      *river.Client[pgx.Tx]
+	Hub              *agentbus.Hub
+	LetsEncryptEmail string
 	// SPA is the embedded React build (web.FS). Optional — when nil,
 	// the controller serves a tiny placeholder page at /. Tests can
 	// safely omit it.
@@ -58,12 +61,14 @@ func NewRouter(deps Deps) http.Handler {
 
 	if deps.AuthService != nil {
 		v1.Mount(r, v1.MountDeps{
-			Auth:        deps.AuthService,
-			JWTSecret:   deps.JWTSecret,
-			Queries:     deps.Queries,
-			Audit:       deps.Audit,
-			RiverClient: deps.RiverClient,
-			Logger:      deps.Logger,
+			Auth:             deps.AuthService,
+			JWTSecret:        deps.JWTSecret,
+			Queries:          deps.Queries,
+			Audit:            deps.Audit,
+			RiverClient:      deps.RiverClient,
+			Hub:              deps.Hub,
+			LetsEncryptEmail: deps.LetsEncryptEmail,
+			Logger:           deps.Logger,
 		})
 	}
 

@@ -71,6 +71,32 @@ type Site struct {
 	WebhookSecret   pgtype.Text
 }
 
+type SiteCert struct {
+	ID        int64
+	SiteID    int64
+	Domain    string
+	Status    string
+	IssuedAt  pgtype.Timestamptz
+	ExpiresAt pgtype.Timestamptz
+	LastError pgtype.Text
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+}
+
+type SiteDaemon struct {
+	ID           int64
+	SiteID       int64
+	Slug         string
+	Name         string
+	Command      string
+	AutoRestart  bool
+	Status       string
+	LastActionAt pgtype.Timestamptz
+	LastError    pgtype.Text
+	CreatedAt    pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
+}
+
 type SiteDeployScript struct {
 	SiteID    int64
 	Body      string

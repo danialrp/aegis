@@ -88,7 +88,62 @@ const (
 
 	// Phase 1.5 — exec a deploy script as site_<id>.
 	MethodHostSiteRunScript = "host.site_run_script"
+
+	// Phase 2.1 — Let's Encrypt certs via certbot.
+	MethodHostCertIssue  = "host.cert_issue"
+	MethodHostCertRemove = "host.cert_remove"
+	MethodHostCertStatus = "host.cert_status"
+
+	// Phase 2.4 — supervisor-managed daemons.
+	MethodHostDaemonWrite  = "host.daemon_write"
+	MethodHostDaemonRemove = "host.daemon_remove"
+	MethodHostDaemonAction = "host.daemon_action"
+	MethodHostDaemonLogs   = "host.daemon_logs"
 )
+
+// CertIssueParams is the payload of host.cert_issue.
+type CertIssueParams struct {
+	Domain string `json:"domain"`
+	Email  string `json:"email"`
+}
+
+// DomainParams is the payload of host.cert_remove.
+type DomainParams struct {
+	Domain string `json:"domain"`
+}
+
+// CertStatusResult is the payload of host.cert_status. Output is the
+// raw text from `certbot certificates`; the controller parses it.
+type CertStatusResult struct {
+	Raw string `json:"raw"`
+}
+
+// DaemonWriteParams configures a supervisor program.
+type DaemonWriteParams struct {
+	SiteID      int64  `json:"site_id"`
+	Slug        string `json:"slug"`         // [a-z0-9-]+, used in supervisor program name
+	Command     string `json:"command"`      // full command line
+	AutoRestart bool   `json:"auto_restart"` // restart on non-zero exit
+}
+
+// DaemonSlugParams is the payload for remove + log RPCs.
+type DaemonSlugParams struct {
+	SiteID int64  `json:"site_id"`
+	Slug   string `json:"slug"`
+	Lines  int    `json:"lines,omitempty"` // only used by host.daemon_logs
+}
+
+// DaemonActionParams toggles the runtime state of a supervisor program.
+type DaemonActionParams struct {
+	SiteID int64  `json:"site_id"`
+	Slug   string `json:"slug"`
+	Action string `json:"action"` // "start" | "stop" | "restart"
+}
+
+// DaemonLogsResult carries the tailed log.
+type DaemonLogsResult struct {
+	Output string `json:"output"`
+}
 
 // SiteIDParams is the shared payload for site-targeted host RPCs that
 // only need the site id.

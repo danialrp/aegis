@@ -116,6 +116,10 @@ func (s *CronScheduler) sync(ctx context.Context) error {
 		if _, ok := s.ids[siteID]; ok {
 			continue
 		}
+		// contextcheck: the cron library invokes the registered fn with
+		// no args at tick time, so we cannot thread our outer ctx into
+		// it. tickerFor builds its own bounded context per fire.
+		//nolint:contextcheck
 		id, err := s.c.AddFunc(spec, s.tickerFor(siteID))
 		if err != nil {
 			s.logger.Warn("invalid cron spec",
@@ -137,6 +141,9 @@ func (s *CronScheduler) entryHasSpec(cron.EntryID, string) bool { return false }
 // since the schedule outlives any single Run() call.
 func (s *CronScheduler) tickerFor(siteID int64) func() {
 	return func() {
+		//nolint:contextcheck // intentional fresh background: the cron tick
+		// fires on its own goroutine, after the parent Run-context may
+		// have been cancelled by then.
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 

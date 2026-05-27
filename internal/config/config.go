@@ -52,6 +52,10 @@ type Config struct {
 	// Per-deploy wall-clock cap. Forge's hard 10m is the bar we're
 	// clearing here.
 	DeployTimeout time.Duration `env:"AEGIS_DEPLOY_TIMEOUT" envDefault:"30m"`
+
+	// SSL — email address used as the Let's Encrypt account contact.
+	// Required when an operator clicks "Enable HTTPS" on a site.
+	LetsEncryptEmail string `env:"AEGIS_LETSENCRYPT_EMAIL" envDefault:""`
 }
 
 // AgentPublicURL returns the WSS URL that provisioned agents will dial.

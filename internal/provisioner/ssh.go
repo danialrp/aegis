@@ -69,6 +69,9 @@ func (p *SSHProvisioner) Provision(ctx context.Context, t Target) error {
 		name string
 		fn   func() error
 	}{
+		{"apt install", func() error {
+			return runSudoSteps(client, aptInstallCmds(BootstrapAptPackages))
+		}},
 		{"ensure user", func() error { return runSudoSteps(client, ensureUserCmds()) }},
 		{"ensure dirs", func() error { return runSudoSteps(client, ensureDirsCmds()) }},
 		{"upload binary", func() error {
@@ -276,6 +279,21 @@ func ensureDirsCmds() []string {
 	return []string{
 		"install -d -o aegis -g aegis -m 0750 /etc/aegis",
 		"install -d -o aegis -g aegis -m 0750 /var/lib/aegis",
+	}
+}
+
+// aptInstallCmds returns the commands to install the named packages.
+// `apt-get update` runs once, then a single install for the whole set.
+// DEBIAN_FRONTEND=noninteractive prevents interactive prompts during
+// e.g. ssl-cert package install on a fresh box.
+func aptInstallCmds(packages []string) []string {
+	if len(packages) == 0 {
+		return nil
+	}
+	list := strings.Join(packages, " ")
+	return []string{
+		"apt-get update -y",
+		"DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends " + list,
 	}
 }
 

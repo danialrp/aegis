@@ -4,8 +4,10 @@ import { Button } from '@/components/ui/button'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { deleteSite, getSite } from './api'
+import { DaemonsPanel } from './daemons-panel'
 import { DeployScriptEditor } from './deploy-script-editor'
 import { DeploysPanel } from './deploys-panel'
+import { SSLPanel } from './ssl-panel'
 import { SiteStatusBadge } from './status-badge'
 
 export function SiteDetail({ id }: { id: number }) {
@@ -87,9 +89,13 @@ export function SiteDetail({ id }: { id: number }) {
               />
             </dl>
 
+            <SSLPanel siteID={data.id} />
+
             <DeployScriptEditor siteID={data.id} />
 
             <DeploysPanel siteID={data.id} />
+
+            <DaemonsPanel siteID={data.id} />
 
             <div className='flex justify-end'>
               <Button
