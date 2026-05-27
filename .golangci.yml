@@ -1,0 +1,84 @@
+# golangci-lint v2 config for Aegis.
+# Migrated from the v1 config that listed correctness/security linters
+# explicitly and turned off the opinionated style ones (funlen, gocognit,
+# nestif, lll, wsl, nlreturn). v2 split formatters (gofumpt, goimports)
+# into their own section.
+version: "2"
+run:
+  tests: true
+  build-tags:
+    - integration
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - contextcheck
+    - errcheck
+    - gocritic
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - nilerr
+    - noctx
+    - prealloc
+    - revive
+    - staticcheck
+    - unconvert
+    - unused
+  settings:
+    gosec:
+      excludes:
+        - G104
+    revive:
+      severity: warning
+      rules:
+        - name: exported
+          arguments:
+            - disableStutteringCheck
+        - name: var-naming
+        - name: package-comments
+        - name: indent-error-flow
+        - name: errorf
+        - name: error-return
+        - name: error-naming
+        - name: if-return
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: unreachable-code
+        - name: redefines-builtin-id
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - errcheck
+          - gosec
+          - noctx
+        path: _test\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/danialrp/aegis
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

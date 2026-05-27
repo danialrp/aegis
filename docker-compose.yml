@@ -1,0 +1,75 @@
+# Aegis — local dev stack
+#
+# Brings up the full controller (built from this repo) alongside its
+# Postgres + Redis dependencies. After `docker compose up -d`:
+#
+#   panel:  http://localhost:8080
+#   agent endpoint (mTLS+WSS):  wss://localhost:8443/agent/v1/ws
+#
+# Default god login (created on first boot):
+#   email:    danial@example.com
+#   password: bootstrap-passphrase-here
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_DB: aegis
+      POSTGRES_USER: aegis
+      POSTGRES_PASSWORD: aegis
+    volumes:
+      - aegis-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aegis -d aegis"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - aegis-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  controller:
+    build:
+      context: .
+      args:
+        VERSION: dev
+        COMMIT: docker-compose
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8443:8443"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AEGIS_HTTP_ADDR: ":8080"
+      AEGIS_AGENT_ADDR: ":8443"
+      AEGIS_DATABASE_URL: postgres://aegis:aegis@postgres:5432/aegis?sslmode=disable
+      AEGIS_REDIS_URL: redis://redis:6379/0
+      AEGIS_JWT_SECRET: change-me-in-real-deployments-32chars
+      AEGIS_BOOTSTRAP_EMAIL: danial@example.com
+      AEGIS_BOOTSTRAP_PASSWORD: bootstrap-passphrase-here
+      AEGIS_LOG_FORMAT: text
+      AEGIS_CA_DIR: /var/lib/aegis/ca
+      AEGIS_AGENT_SERVER_NAME: localhost
+      AEGIS_AGENT_PUBLIC_URL: wss://localhost:8443/agent/v1/ws
+    volumes:
+      - aegis-ca:/var/lib/aegis/ca
+
+volumes:
+  aegis-pg:
+  aegis-redis:
+  aegis-ca:

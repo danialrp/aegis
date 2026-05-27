@@ -1,0 +1,9 @@
+.git
+.github
+.vscode
+bin/
+web/node_modules
+web/dist
+internal/agentbinary/bin/
+*.log
+HANDOVER.md

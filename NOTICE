@@ -1,0 +1,54 @@
+Aegis
+Copyright (C) 2026 Danial Panah <https://github.com/danialrp>
+
+This product includes software developed by the Aegis contributors.
+Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
+See the LICENSE file for full terms.
+
+================================================================
+Third-party software, ideas, and patterns this project draws from
+================================================================
+
+Vito  (https://github.com/vitodeploy/vito)
+  License: AGPL-3.0
+  Used as a reference for server provisioning patterns, SSH executor
+  design, Let's Encrypt issuance flow, and supervisor/daemon management.
+  Aegis is an independent implementation in Go with a different
+  architectural foundation (per-site Linux user isolation, native agent,
+  containerized Docker site type). No Vito code is copied verbatim;
+  patterns and naming conventions are credited here.
+
+satnaing/shadcn-admin  (https://github.com/satnaing/shadcn-admin)
+  License: MIT
+  Used as the initial scaffold for the React + Vite + shadcn/ui frontend.
+  Aegis modifies, removes, and extends this template substantially. The
+  original MIT license is retained in web/THIRD_PARTY_NOTICES.md.
+
+shadcn/ui  (https://ui.shadcn.com/)
+  License: MIT
+  UI component primitives.
+
+Tailwind CSS, Radix UI, TanStack Router/Query/Table, react-hook-form,
+zod, sonner, recharts, xterm.js
+  Licenses: MIT (each)
+  See web/package.json and web/THIRD_PARTY_NOTICES.md for full attribution.
+
+Go ecosystem (chi, pgx, sqlc, goose, go-redis, go-playground/validator,
+golang-jwt, alexedwards/argon2id, coder/websocket, creack/pty,
+docker/docker client, golang.org/x/crypto/ssh, riverqueue/river,
+prometheus/client_golang, caarlos0/env, testify, testcontainers-go)
+  Licenses: BSD-3-Clause, MIT, Apache-2.0 (each)
+  See go.mod for the authoritative dependency list and
+  THIRD_PARTY_NOTICES.md for license texts.
+
+================================================================
+Trademarks
+================================================================
+
+"Laravel Forge" is a trademark of Laravel LLC. Aegis is an
+independent project and is not affiliated with, endorsed by, or
+sponsored by Laravel LLC.
+
+"Docker" is a trademark of Docker, Inc.
+
+All other trademarks are the property of their respective owners.

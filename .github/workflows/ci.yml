@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: web · lint · build · test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Frontend — install
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Frontend — typecheck
+        working-directory: web
+        run: pnpm typecheck
+
+      - name: Frontend — build (populates web/dist for go:embed)
+        working-directory: web
+        run: pnpm build
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Verify go.mod is tidy
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
+
+      - name: Lint (golangci-lint)
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v2.12.2
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test (unit)
+        run: go test -race -count=1 ./...
+
+      - name: Test (integration)
+        # testcontainers-go pulls postgres:16-alpine on first run.
+        # ubuntu-latest ships with Docker, no extra setup needed.
+        run: go test -race -count=1 -tags=integration ./...

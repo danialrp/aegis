@@ -1,0 +1,82 @@
+# --- Build output ----------------------------------------------------------
+/bin/
+/build/
+/dist/
+*.exe
+*.test
+*.out
+*.prof
+
+# --- Go --------------------------------------------------------------------
+vendor/
+coverage.out
+coverage.html
+# Delve debugger
+__debug_bin*
+# Embedded cross-compiled agent binaries (produced by `make agent-cross`)
+internal/agentbinary/bin/
+
+# --- Frontend / Node -------------------------------------------------------
+/web/node_modules/
+/web/.vite/
+/web/build/
+/web/.pnpm-store/
+/web/.turbo/
+
+# Vite build output. We commit only the .gitkeep marker so go:embed has
+# a directory to point at on a fresh checkout — the SPA handler renders
+# a clear "frontend not built" page when no real index.html is present.
+/web/dist/*
+!/web/dist/.gitkeep
+
+# --- Logs ------------------------------------------------------------------
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Generated / cached ----------------------------------------------------
+/web/src/api/generated/
+# Hot-reload tooling (air)
+/tmp/
+
+# --- Local environment -----------------------------------------------------
+# Internal session notes, not for the public repo.
+/docs/notes/
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# --- Tooling configs -------------------------------------------------------
+# Claude Code / Anthropic CLI local config
+/.claude/
+
+# --- Runtime data ----------------------------------------------------------
+/.data/
+
+# --- TLS / secrets — never commit -----------------------------------------
+*.pem
+*.key
+*.crt
+*.csr
+/deploy/ca/
+
+# --- IDE / editors ---------------------------------------------------------
+.idea/
+.vscode/
+*.iml
+*.iws
+*.swp
+*.swo
+*~
+
+# --- OS junk ---------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Misc ------------------------------------------------------------------
+*.bak
+*.orig
