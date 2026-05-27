@@ -16,18 +16,20 @@ function Dashboard() {
   const { auth } = useAuthStore()
   return (
     <div className='p-6'>
-      <Card>
+      <Card className='shadow-md'>
         <CardHeader>
-          <CardTitle>Welcome to Aegis</CardTitle>
+          <CardTitle className='text-2xl font-bold tracking-tight'>
+            Welcome to Aegis
+          </CardTitle>
           <CardDescription>
             Signed in as <span className='font-medium'>{auth.user?.email}</span>{' '}
             ({auth.user?.role}).
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className='text-sm text-muted-foreground'>
-            Server provisioning, sites, and deploy scripts will land here as
-            Phase 1 progresses.
+          <p className='text-muted-foreground text-sm'>
+            Manage your servers, sites, and deploy scripts from the navigation
+            on the left.
           </p>
         </CardContent>
       </Card>

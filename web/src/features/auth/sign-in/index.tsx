@@ -14,12 +14,12 @@ export function SignIn() {
 
   return (
     <AuthLayout>
-      <Card className='max-w-sm gap-4'>
+      <Card className='w-full shadow-xl'>
         <CardHeader>
-          <CardTitle className='text-lg tracking-tight'>
+          <CardTitle className='text-2xl font-bold tracking-tight'>
             Sign in to Aegis
           </CardTitle>
-          <CardDescription>
+          <CardDescription className='text-muted-foreground'>
             Enter your email and password to access the panel.
           </CardDescription>
         </CardHeader>

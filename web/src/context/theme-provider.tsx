@@ -4,7 +4,9 @@ import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
 type Theme = 'dark' | 'light' | 'system'
 type ResolvedTheme = Exclude<Theme, 'system'>
 
-const DEFAULT_THEME = 'system'
+// Aegis is dark-first. The light-mode palette exists but the panel
+// ships dark by default; operators with a cookie set keep their choice.
+const DEFAULT_THEME = 'dark'
 const THEME_COOKIE_NAME = 'vite-ui-theme'
 const THEME_COOKIE_MAX_AGE = 60 * 60 * 24 * 365 // 1 year
 

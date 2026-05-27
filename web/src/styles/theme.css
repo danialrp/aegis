@@ -1,73 +1,134 @@
-:root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+/*
+ * Aegis design tokens.
+ *
+ * Dark-first; the light-mode block is kept honest but the panel
+ * ships dark by default. Token names follow shadcn's conventions
+ * so every primitive picks up the new palette automatically — no
+ * per-component theming required.
+ *
+ * Palette intent:
+ *   - Backgrounds are blue-cool near-black, never pure #000.
+ *   - Cards sit one step lighter than the page; popovers one more.
+ *   - Borders are barely visible, the kind that vanish on hover.
+ *   - Primary is a confident mint green (#00A76F) — security-panel
+ *     vibe without leaning into the cliché corporate blue.
+ *   - Foreground hierarchy: white → #919EAB (muted) → #637381 (subtle).
+ */
 
-  --sidebar: var(--background);
+:root {
+  --radius: 0.75rem;
+
+  /* Light mode — kept honest but the app boots dark. */
+  --background: #ffffff;
+  --foreground: #1c252e;
+  --card: #ffffff;
+  --card-foreground: #1c252e;
+  --popover: #ffffff;
+  --popover-foreground: #1c252e;
+  --primary: #00a76f;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f6f8;
+  --secondary-foreground: #1c252e;
+  --muted: #f4f6f8;
+  --muted-foreground: #637381;
+  --accent: #f4f6f8;
+  --accent-foreground: #1c252e;
+  --destructive: #ff5630;
+  --destructive-foreground: #ffffff;
+  --warning: #ffab00;
+  --success: #22c55e;
+  --info: #00b8d9;
+  --border: rgba(145, 158, 171, 0.2);
+  --input: rgba(145, 158, 171, 0.2);
+  --ring: rgba(0, 167, 111, 0.4);
+
+  --chart-1: #00a76f;
+  --chart-2: #00b8d9;
+  --chart-3: #ffab00;
+  --chart-4: #8e33ff;
+  --chart-5: #ff5630;
+
+  --sidebar: #ffffff;
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: var(--accent);
-  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-accent: rgba(0, 167, 111, 0.08);
+  --sidebar-accent-foreground: var(--primary);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
 }
 
 .dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.14 0.04 259.21);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
+  /* Background ladder: page → card → popover. Each ~one step lighter. */
+  --background: #141a21;
+  --foreground: #ffffff;
+  --card: #1c252e;
+  --card-foreground: #ffffff;
+  --popover: #212b36;
+  --popover-foreground: #ffffff;
+
+  /* Mint primary stays bright on dark — minimals.cc signature green. */
+  --primary: #00a76f;
+  --primary-foreground: #ffffff;
+
+  /* Secondary / muted / accent ladder upward on the elevated surface. */
+  --secondary: rgba(145, 158, 171, 0.12);
+  --secondary-foreground: #ffffff;
+  --muted: rgba(145, 158, 171, 0.08);
+  --muted-foreground: #919eab;
+  --accent: rgba(145, 158, 171, 0.16);
+  --accent-foreground: #ffffff;
+
+  --destructive: #ff5630;
+  --destructive-foreground: #ffffff;
+  --warning: #ffab00;
+  --success: #22c55e;
+  --info: #00b8d9;
+
+  --border: rgba(145, 158, 171, 0.16);
+  --input: rgba(145, 158, 171, 0.2);
+  --ring: rgba(0, 167, 111, 0.32);
+
+  --chart-1: #00a76f;
+  --chart-2: #00b8d9;
+  --chart-3: #ffab00;
+  --chart-4: #8e33ff;
+  --chart-5: #ff5630;
+
+  /* Sidebar is slightly darker than the page background, with the
+     active item painted in a soft mint tint. */
+  --sidebar: #0e1419;
+  --sidebar-foreground: #919eab;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(0, 167, 111, 0.12);
+  --sidebar-accent-foreground: #00a76f;
+  --sidebar-border: rgba(145, 158, 171, 0.12);
+  --sidebar-ring: var(--ring);
 }
 
 @theme inline {
-  --font-inter: 'Inter', 'sans-serif';
-  --font-manrope: 'Manrope', 'sans-serif';
+  /* Public Sans is what gives minimals.cc its identity — designed
+     for screens, free, holds up at the small sizes a panel actually
+     uses. The italic + 100..900 weight axes load via index.html. */
+  --font-sans:
+    'Public Sans', ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Public Sans', var(--font-sans);
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', monospace;
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  /* Aliased so existing class refs (font-inter, font-manrope) keep
+     compiling — they all resolve to Public Sans now. */
+  --font-inter: var(--font-sans);
+  --font-manrope: var(--font-display);
+
+  --radius-sm: calc(var(--radius) - 6px); /* 6px */
+  --radius-md: calc(var(--radius) - 4px); /* 8px */
+  --radius-lg: var(--radius);             /* 12px */
+  --radius-xl: calc(var(--radius) + 4px); /* 16px */
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -83,6 +144,10 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
+  --color-success: var(--success);
+  --color-info: var(--info);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -99,4 +164,17 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Soft, layered shadows — what makes minimals' surfaces look
+     like they sit on the page rather than being painted onto it. */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.16);
+  --shadow-md:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 8px 16px -4px rgba(0, 0, 0, 0.24);
+  --shadow-lg:
+    0 0 2px 0 rgba(0, 0, 0, 0.32),
+    0 12px 24px -4px rgba(0, 0, 0, 0.24);
+  --shadow-xl:
+    0 0 2px 0 rgba(0, 0, 0, 0.4),
+    0 16px 32px -4px rgba(0, 0, 0, 0.32);
 }

@@ -12,9 +12,26 @@
   }
   html {
     @apply overflow-x-hidden;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
   body {
     @apply min-h-svh w-full bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  /* Display headings — tighter tracking + bolder weight than body. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    letter-spacing: -0.015em;
+    font-weight: 700;
+  }
+  h1 {
+    font-weight: 800;
+    letter-spacing: -0.02em;
   }
 
   /* Override Radix scroll locking for sticky headers */
