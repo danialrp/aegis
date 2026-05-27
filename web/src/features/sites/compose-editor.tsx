@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -11,17 +11,17 @@ export function ComposeEditor({ siteID }: { siteID: number }) {
     queryFn: () => getCompose(siteID),
   })
 
-  const [body, setBody] = useState('')
-  const [dirty, setDirty] = useState(false)
-
-  useEffect(() => {
-    if (data && !dirty) setBody(data.body)
-  }, [data, dirty])
+  // Derive the editor value from server data unless the operator has
+  // typed something. Avoids the "load remote into local state via
+  // useEffect" anti-pattern: dirty is implicit in draft !== null.
+  const [draft, setDraft] = useState<string | null>(null)
+  const body = draft ?? data?.body ?? ''
+  const dirty = draft !== null
 
   const save = useMutation({
     mutationFn: () => putCompose(siteID, body),
     onSuccess: async () => {
-      setDirty(false)
+      setDraft(null)
       await qc.invalidateQueries({ queryKey: ['compose', siteID] })
     },
   })
@@ -50,10 +50,7 @@ export function ComposeEditor({ siteID }: { siteID: number }) {
       ) : (
         <Textarea
           value={body}
-          onChange={(e) => {
-            setBody(e.target.value)
-            setDirty(true)
-          }}
+          onChange={(e) => setDraft(e.target.value)}
           rows={16}
           className='font-mono text-sm'
         />
@@ -62,12 +59,7 @@ export function ComposeEditor({ siteID }: { siteID: number }) {
         <Button
           variant='outline'
           disabled={!dirty}
-          onClick={() => {
-            if (data) {
-              setBody(data.body)
-              setDirty(false)
-            }
-          }}
+          onClick={() => setDraft(null)}
         >
           Revert
         </Button>

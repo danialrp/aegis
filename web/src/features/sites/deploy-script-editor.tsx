@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,22 +16,20 @@ export function DeployScriptEditor({ siteID }: { siteID: number }) {
     queryFn: () => getDeployScript(siteID),
   })
 
-  const [body, setBody] = useState('')
-  const [cron, setCron] = useState('')
-  const [dirty, setDirty] = useState(false)
-
-  useEffect(() => {
-    if (data && !dirty) {
-      setBody(data.body)
-      setCron(data.cron_spec ?? '')
-    }
-  }, [data, dirty])
+  // Derive editor state from server data unless the operator has
+  // typed something; dirty is implicit in (draftBody | draftCron) !== null.
+  const [draftBody, setDraftBody] = useState<string | null>(null)
+  const [draftCron, setDraftCron] = useState<string | null>(null)
+  const body = draftBody ?? data?.body ?? ''
+  const cron = draftCron ?? data?.cron_spec ?? ''
+  const dirty = draftBody !== null || draftCron !== null
 
   const save = useMutation({
     mutationFn: () =>
       putDeployScript(siteID, body, cron.trim() === '' ? null : cron.trim()),
     onSuccess: async () => {
-      setDirty(false)
+      setDraftBody(null)
+      setDraftCron(null)
       await qc.invalidateQueries({ queryKey: ['deploy-script', siteID] })
     },
   })
@@ -57,10 +55,7 @@ export function DeployScriptEditor({ siteID }: { siteID: number }) {
       ) : (
         <Textarea
           value={body}
-          onChange={(e) => {
-            setBody(e.target.value)
-            setDirty(true)
-          }}
+          onChange={(e) => setDraftBody(e.target.value)}
           rows={18}
           className='font-mono text-sm'
         />
@@ -72,10 +67,7 @@ export function DeployScriptEditor({ siteID }: { siteID: number }) {
           id='cron'
           placeholder='e.g. 0 3 * * *  (daily at 03:00 UTC)'
           value={cron}
-          onChange={(e) => {
-            setCron(e.target.value)
-            setDirty(true)
-          }}
+          onChange={(e) => setDraftCron(e.target.value)}
           className='font-mono text-sm'
         />
         <p className='text-muted-foreground text-xs'>
@@ -89,11 +81,8 @@ export function DeployScriptEditor({ siteID }: { siteID: number }) {
           variant='outline'
           disabled={!dirty}
           onClick={() => {
-            if (data) {
-              setBody(data.body)
-              setCron(data.cron_spec ?? '')
-              setDirty(false)
-            }
+            setDraftBody(null)
+            setDraftCron(null)
           }}
         >
           Revert

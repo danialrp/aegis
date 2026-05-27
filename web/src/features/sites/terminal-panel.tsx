@@ -3,7 +3,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Terminal as XTermTerminal } from '@xterm/xterm'
 import { PowerOff, Terminal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { ApiError, isApiError } from '@/lib/api'
+import { isApiError, type ApiError } from '@/lib/api'
 import { issueTerminalTicket } from './terminal-api'
 import '@xterm/xterm/css/xterm.css'
 

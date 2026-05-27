@@ -74,9 +74,8 @@ function DaemonRow({ siteID, daemonID }: { siteID: number; daemonID: number }) {
     queryKey: ['daemons', siteID],
     queryFn: () => listDaemons(siteID),
   })
-  const d = list?.find((x) => x.id === daemonID)
-  if (!d) return null
-
+  // Hook calls must run unconditionally; the "row vanished" guard
+  // (e.g. right after delete) runs after all hooks have been called.
   const act = useMutation({
     mutationFn: (action: DaemonAction) => daemonAction(siteID, daemonID, action),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['daemons', siteID] }),
@@ -85,6 +84,9 @@ function DaemonRow({ siteID, daemonID }: { siteID: number; daemonID: number }) {
     mutationFn: () => deleteDaemon(siteID, daemonID),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['daemons', siteID] }),
   })
+
+  const d = list?.find((x) => x.id === daemonID)
+  if (!d) return null
 
   return (
     <div className='border-border rounded-md border p-3'>
